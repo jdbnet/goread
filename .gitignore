@@ -1,0 +1,10 @@
+/ebook-reader
+/data/
+/library/
+web/node_modules/
+web/dist/
+internal/ui/dist/**
+!internal/ui/dist/.gitkeep
+*.exe
+.DS_Store
+.env
