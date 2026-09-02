@@ -1,0 +1,38 @@
+{
+  "id": "/",
+  "name": "eBook Reader",
+  "short_name": "eBooks",
+  "description": "Self-hosted EPUB reader",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1c1917",
+  "theme_color": "#1c1917",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
