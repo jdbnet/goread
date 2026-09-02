@@ -97,6 +97,8 @@ func (c *Client) Download(rawURL string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	req.Header.Set("User-Agent", "ebook-reader/1.0")
+	req.Header.Set("Accept", "image/jpeg,image/png,image/webp,image/gif,image/*;q=0.8")
+	req.Header.Set("Referer", "https://openlibrary.org/")
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return nil, "", err
@@ -109,7 +111,13 @@ func (c *Client) Download(rawURL string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	ct := resp.Header.Get("Content-Type")
+	if len(data) < 100 {
+		return nil, "", fmt.Errorf("cover too small")
+	}
+	ct := strings.ToLower(resp.Header.Get("Content-Type"))
+	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/json") {
+		return nil, "", fmt.Errorf("not an image")
+	}
 	ext := ".jpg"
 	switch {
 	case strings.Contains(ct, "png"):

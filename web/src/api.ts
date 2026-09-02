@@ -49,6 +49,22 @@ export const api = {
   applyMetadata(id: number, body: Partial<MetadataHit>): Promise<Book> {
     return req(`/api/v1/books/${id}/metadata`, { method: "POST", body: JSON.stringify(body) });
   },
+  async uploadCover(id: number, file: File): Promise<Book> {
+    const form = new FormData();
+    form.append("cover", file);
+    const res = await fetch(`/api/v1/books/${id}/cover`, { method: "POST", body: form });
+    if (!res.ok) {
+      let message = res.statusText;
+      try {
+        const body = (await res.json()) as { error?: string };
+        if (body.error) message = body.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message);
+    }
+    return (await res.json()) as Book;
+  },
   setSeries(id: number, name: string, sequence_number: number | null): Promise<Book> {
     return req(`/api/v1/books/${id}/series`, {
       method: "PUT",

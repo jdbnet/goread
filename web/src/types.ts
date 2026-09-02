@@ -39,10 +39,23 @@ export type Progress = {
   completed_at: string | null;
 };
 
+export type AccentId =
+  | "amber"
+  | "orange"
+  | "rose"
+  | "red"
+  | "emerald"
+  | "teal"
+  | "sky"
+  | "indigo"
+  | "violet"
+  | "pink";
+
 export type Settings = {
   font_size: number;
   line_height: number;
   theme: "light" | "dark" | "sepia";
+  accent: AccentId | string;
 };
 
 export type DailyStat = {

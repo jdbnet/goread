@@ -64,6 +64,7 @@ type Settings struct {
 	FontSize   int     `json:"font_size"`
 	LineHeight float64 `json:"line_height"`
 	Theme      string  `json:"theme"`
+	Accent     string  `json:"accent"`
 }
 
 type DailyStat struct {

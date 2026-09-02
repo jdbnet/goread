@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, BookOpen, Search, AlertTriangle, Check } from "@lucide/vue";
+import { ArrowLeft, BookOpen, Search, AlertTriangle, Check, Pencil, LoaderCircle } from "@lucide/vue";
 import { api, stripHtml } from "../api";
 import type { Book, MetadataHit } from "../types";
 import CoverImage from "../components/CoverImage.vue";
 import ProgressBar from "../components/ProgressBar.vue";
+import MetadataEditModal from "../components/MetadataEditModal.vue";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -14,17 +15,14 @@ const query = ref("");
 const hits = ref<MetadataHit[]>([]);
 const searching = ref(false);
 const applying = ref(false);
-const seriesName = ref("");
-const sequence = ref("");
 const message = ref("");
+const editing = ref(false);
 
 const bookId = computed(() => Number(props.id));
 
 async function load() {
   book.value = await api.getBook(bookId.value);
   query.value = [book.value.title, book.value.author, book.value.isbn].filter(Boolean).join(" ");
-  seriesName.value = book.value.series_name;
-  sequence.value = book.value.sequence_number != null ? String(book.value.sequence_number) : "";
 }
 
 async function search() {
@@ -53,17 +51,16 @@ async function apply(hit: MetadataHit) {
   }
 }
 
-async function saveSeries() {
-  if (!book.value) return;
-  const seq = sequence.value === "" ? null : Number(sequence.value);
-  book.value = await api.setSeries(book.value.id, seriesName.value, Number.isFinite(seq) ? seq : null);
-  message.value = "Series saved";
-}
-
 async function toggleComplete() {
   if (!book.value) return;
   await api.postProgress(book.value.id, { completed: !book.value.completed_at });
   await load();
+}
+
+function onEdited(updated: Book) {
+  book.value = updated;
+  editing.value = false;
+  message.value = "Saved";
 }
 
 onMounted(load);
@@ -71,7 +68,7 @@ onMounted(load);
 
 <template>
   <div v-if="book">
-    <button type="button" class="mb-3 inline-flex items-center gap-1 text-sm text-stone-500" @click="router.back()">
+    <button type="button" class="mb-3 inline-flex items-center gap-1 text-sm text-stone-500" @click="router.replace('/library')">
       <ArrowLeft :size="16" /> Back
     </button>
 
@@ -82,7 +79,7 @@ onMounted(load);
       <div class="min-w-0 flex-1">
         <h1 class="text-xl font-bold leading-tight">{{ book.title }}</h1>
         <p class="mt-1 text-stone-500">{{ book.author }}</p>
-        <p v-if="book.series_name" class="mt-1 text-sm text-amber-800 dark:text-amber-400">
+        <p v-if="book.series_name" class="mt-1 text-sm text-accent-strong dark:text-accent-soft">
           {{ book.series_name }}
           <span v-if="book.sequence_number != null">· {{ book.sequence_number }}</span>
         </p>
@@ -94,11 +91,19 @@ onMounted(load);
           <button
             v-if="!book.file_missing"
             type="button"
-            class="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white"
-            @click="router.push(`/read/${book.id}`)"
+            class="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
+            @click="router.replace(`/read/${book.id}`)"
           >
             <BookOpen :size="16" />
             {{ book.percent_completed > 0 ? "Continue" : "Read" }}
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-full border border-stone-300 px-4 py-2 text-sm dark:border-stone-700"
+            @click="editing = true"
+          >
+            <Pencil :size="16" />
+            Edit
           </button>
           <button
             type="button"
@@ -129,20 +134,18 @@ onMounted(load);
     </dl>
 
     <section class="mt-8">
-      <h2 class="mb-3 text-lg font-semibold">Series</h2>
-      <div class="flex flex-col gap-2 sm:flex-row">
-        <input v-model="seriesName" placeholder="Series name" class="flex-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900" />
-        <input v-model="sequence" placeholder="#" class="w-24 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900" />
-        <button type="button" class="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white dark:bg-stone-100 dark:text-stone-900" @click="saveSeries">Save</button>
-      </div>
-    </section>
-
-    <section class="mt-8">
       <h2 class="mb-3 text-lg font-semibold">Search & match</h2>
       <div class="flex gap-2">
         <input v-model="query" class="flex-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900" @keydown.enter="search" />
-        <button type="button" class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm" :disabled="searching" @click="search">
-          <Search :size="16" /> Match
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm disabled:opacity-50"
+          :disabled="searching"
+          @click="search"
+        >
+          <LoaderCircle v-if="searching" :size="16" class="animate-spin" />
+          <Search v-else :size="16" />
+          {{ searching ? "Matching…" : "Match" }}
         </button>
       </div>
       <p v-if="message" class="mt-2 text-sm text-stone-500">{{ message }}</p>
@@ -158,7 +161,7 @@ onMounted(load);
             <p class="text-xs text-stone-500">{{ hit.author }}</p>
             <button
               type="button"
-              class="mt-2 rounded-full bg-amber-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+              class="mt-2 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
               :disabled="applying"
               @click="apply(hit)"
             >
@@ -168,5 +171,12 @@ onMounted(load);
         </li>
       </ul>
     </section>
+
+    <MetadataEditModal
+      v-if="editing"
+      :book="book"
+      @close="editing = false"
+      @saved="onEdited"
+    />
   </div>
 </template>

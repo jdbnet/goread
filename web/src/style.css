@@ -2,6 +2,27 @@
 
 @theme {
   --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-bar: var(--accent-bar);
+  --color-accent-bar-dark: var(--accent-bar-dark);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-muted-fg: var(--accent-muted-fg);
+  --color-accent-muted-dark: var(--accent-muted-dark);
+  --color-accent-muted-fg-dark: var(--accent-muted-fg-dark);
+}
+
+html {
+  --accent: #b45309;
+  --accent-strong: #92400e;
+  --accent-soft: #fbbf24;
+  --accent-bar: #d97706;
+  --accent-bar-dark: #f59e0b;
+  --accent-muted: #fef3c7;
+  --accent-muted-fg: #92400e;
+  --accent-muted-dark: #451a03;
+  --accent-muted-fg-dark: #fcd34d;
 }
 
 html,
@@ -13,6 +34,12 @@ body,
 
 body {
   @apply bg-stone-50 text-stone-900 antialiased;
+}
+
+@layer base {
+  button {
+    @apply hover:cursor-pointer;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

@@ -4,6 +4,7 @@ import LibraryView from "./views/LibraryView.vue";
 import SeriesView from "./views/SeriesView.vue";
 import SeriesDetailView from "./views/SeriesDetailView.vue";
 import StatsView from "./views/StatsView.vue";
+import SettingsView from "./views/SettingsView.vue";
 import BookView from "./views/BookView.vue";
 import ReaderView from "./views/ReaderView.vue";
 
@@ -15,6 +16,7 @@ export const router = createRouter({
     { path: "/series", name: "series", component: SeriesView },
     { path: "/series/:id", name: "series-detail", component: SeriesDetailView, props: true },
     { path: "/stats", name: "stats", component: StatsView },
+    { path: "/settings", name: "settings", component: SettingsView },
     { path: "/books/:id", name: "book", component: BookView, props: true },
     { path: "/read/:id", name: "read", component: ReaderView, props: true, meta: { hideChrome: true } },
   ],

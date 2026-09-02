@@ -296,6 +296,22 @@ func extFromName(href string, data []byte) string {
 	return ".jpg"
 }
 
+func ImageExtFromBytes(data []byte) (string, error) {
+	if len(data) >= 3 && data[0] == 0xff && data[1] == 0xd8 {
+		return ".jpg", nil
+	}
+	if len(data) >= 8 && bytes.HasPrefix(data, []byte{0x89, 0x50, 0x4e, 0x47}) {
+		return ".png", nil
+	}
+	if bytes.HasPrefix(data, []byte("GIF")) {
+		return ".gif", nil
+	}
+	if len(data) >= 12 && bytes.HasPrefix(data, []byte("RIFF")) && bytes.Equal(data[8:12], []byte("WEBP")) {
+		return ".webp", nil
+	}
+	return "", fmt.Errorf("cover must be jpeg, png, gif, or webp")
+}
+
 func looksLikeISBN(s string) bool {
 	d := digitsOnly(s)
 	return len(d) == 10 || len(d) == 13

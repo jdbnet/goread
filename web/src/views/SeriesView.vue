@@ -18,7 +18,7 @@ onMounted(async () => {
     <ul v-if="series.length" class="divide-y divide-stone-200 dark:divide-stone-800">
       <li v-for="s in series" :key="s.id">
         <RouterLink :to="`/series/${s.id}`" class="flex items-center gap-3 py-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-muted text-accent-muted-fg dark:bg-accent-muted-dark dark:text-accent-muted-fg-dark">
             <Layers :size="20" />
           </div>
           <div class="min-w-0 flex-1">

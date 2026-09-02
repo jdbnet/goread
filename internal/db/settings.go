@@ -2,10 +2,11 @@ package db
 
 func (d *DB) GetSettings() (Settings, error) {
 	var s Settings
-	err := d.SQL.QueryRow(`SELECT font_size, line_height, theme FROM reader_settings WHERE id = 1`).Scan(&s.FontSize, &s.LineHeight, &s.Theme)
+	err := d.SQL.QueryRow(`SELECT font_size, line_height, theme, accent FROM reader_settings WHERE id = 1`).Scan(&s.FontSize, &s.LineHeight, &s.Theme, &s.Accent)
 	if err != nil {
-		return Settings{FontSize: 18, LineHeight: 1.6, Theme: "light"}, err
+		return Settings{FontSize: 18, LineHeight: 1.6, Theme: "light", Accent: "amber"}, err
 	}
+	s.Accent = normalizeAccent(s.Accent)
 	return s, nil
 }
 
@@ -27,6 +28,21 @@ func (d *DB) UpdateSettings(s Settings) error {
 	default:
 		s.Theme = "light"
 	}
-	_, err := d.SQL.Exec(`UPDATE reader_settings SET font_size=?, line_height=?, theme=? WHERE id=1`, s.FontSize, s.LineHeight, s.Theme)
+	if s.Accent == "" {
+		if cur, err := d.GetSettings(); err == nil {
+			s.Accent = cur.Accent
+		}
+	}
+	s.Accent = normalizeAccent(s.Accent)
+	_, err := d.SQL.Exec(`UPDATE reader_settings SET font_size=?, line_height=?, theme=?, accent=? WHERE id=1`, s.FontSize, s.LineHeight, s.Theme, s.Accent)
 	return err
+}
+
+func normalizeAccent(s string) string {
+	switch s {
+	case "amber", "orange", "rose", "red", "emerald", "teal", "sky", "indigo", "violet", "pink":
+		return s
+	default:
+		return "amber"
+	}
 }

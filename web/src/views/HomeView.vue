@@ -50,7 +50,7 @@ onMounted(load);
   <div>
     <header class="mb-6 flex items-center justify-between gap-3">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">Library</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-accent dark:text-accent-soft">Library</p>
         <h1 class="text-2xl font-bold tracking-tight">Continue reading</h1>
       </div>
       <button

@@ -41,6 +41,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/books/{id}", s.getBook)
 	mux.HandleFunc("GET /api/v1/books/{id}/file", s.getBookFile)
 	mux.HandleFunc("GET /api/v1/books/{id}/cover", s.getBookCover)
+	mux.HandleFunc("POST /api/v1/books/{id}/cover", s.uploadCover)
 	mux.HandleFunc("POST /api/v1/books/{id}/metadata", s.applyMetadata)
 	mux.HandleFunc("PUT /api/v1/books/{id}/series", s.setSeries)
 	mux.HandleFunc("POST /api/v1/scan", s.postScan)
@@ -211,8 +212,55 @@ func (s *Server) getBookCover(w http.ResponseWriter, r *http.Request) {
 	if ct := coverType(b.CoverPath); ct != "" {
 		w.Header().Set("Content-Type", ct)
 	}
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "private, no-cache, must-revalidate")
 	http.ServeContent(w, r, filepath.Base(b.CoverPath), stat.ModTime(), f)
+}
+
+func (s *Server) uploadCover(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "id")
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	b, err := s.DB.GetBook(id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
+	if err := r.ParseMultipartForm(6 << 20); err != nil {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("cover too large or invalid"))
+		return
+	}
+	file, _, err := r.FormFile("cover")
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("missing cover file"))
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 6<<20))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	ext, err := scanner.ImageExtFromBytes(data)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	path, err := scanner.ReplaceCoverBytes(s.DataDir, b.ID, data, ext)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	b.CoverPath = path
+	b.UserSetFields = scanner.AddUserField(b.UserSetFields, "cover")
+	if err := s.DB.UpdateBook(b); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	updated, _ := s.DB.GetBook(id)
+	writeJSON(w, http.StatusOK, bookDTO(updated))
 }
 
 func (s *Server) applyMetadata(w http.ResponseWriter, r *http.Request) {
@@ -255,12 +303,17 @@ func (s *Server) applyMetadata(w http.ResponseWriter, r *http.Request) {
 	set("isbn", &b.ISBN, body.ISBN)
 	set("language", &b.Language, body.Language)
 	if body.CoverURL != nil && *body.CoverURL != "" {
-		data, ext, err := s.Meta.Download(*body.CoverURL)
+		data, _, err := s.Meta.Download(*body.CoverURL)
 		if err != nil {
 			writeErr(w, http.StatusBadGateway, fmt.Errorf("download cover: %w", err))
 			return
 		}
-		path, err := scanner.WriteCoverBytes(s.DataDir, b.ID, data, ext)
+		ext, err := scanner.ImageExtFromBytes(data)
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, fmt.Errorf("download cover: not an image"))
+			return
+		}
+		path, err := scanner.ReplaceCoverBytes(s.DataDir, b.ID, data, ext)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
@@ -462,7 +515,11 @@ func bookDTO(b appdb.Book) bookJSON {
 		CreatedAt:       b.CreatedAt,
 	}
 	if b.CoverPath != "" {
-		j.CoverURL = fmt.Sprintf("/api/v1/books/%d/cover", b.ID)
+		v := b.UpdatedAt.UnixMilli()
+		if v == 0 {
+			v = time.Now().UnixMilli()
+		}
+		j.CoverURL = fmt.Sprintf("/api/v1/books/%d/cover?v=%d", b.ID, v)
 	}
 	return j
 }

@@ -5,13 +5,14 @@ import ePub from "epubjs";
 import type { Book as EpubBook, Rendition } from "epubjs";
 import { ChevronLeft, Settings2, Sun, Moon, Lamp } from "@lucide/vue";
 import { api } from "../api";
+import { applyAccent } from "../accent";
 import type { Book, Settings } from "../types";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
 const host = ref<HTMLElement | null>(null);
 const book = ref<Book | null>(null);
-const settings = ref<Settings>({ font_size: 18, line_height: 1.6, theme: "light" });
+const settings = ref<Settings>({ font_size: 18, line_height: 1.6, theme: "light", accent: "amber" });
 const showSettings = ref(false);
 const error = ref("");
 const loading = ref(true);
@@ -22,6 +23,8 @@ let heartbeat: ReturnType<typeof setInterval> | undefined;
 let resizeObserver: ResizeObserver | undefined;
 let lastCfi = "";
 let lastPercent = 0;
+let percentKnown = false;
+let locationsReady = false;
 let closed = false;
 
 function hostSize(el: HTMLElement): { width: number; height: number } {
@@ -97,11 +100,36 @@ function chromeFg(): string {
 
 async function sendProgress(delta: number) {
   if (!book.value) return;
-  await api.postProgress(book.value.id, {
-    current_cfi: lastCfi || undefined,
-    percent_completed: lastPercent,
+  const body: {
+    current_cfi?: string;
+    percent_completed?: number;
+    seconds_delta?: number;
+  } = {
     seconds_delta: delta,
-  });
+  };
+  if (lastCfi) {
+    body.current_cfi = lastCfi;
+  }
+  if (percentKnown) {
+    body.percent_completed = lastPercent;
+  }
+  if (!body.current_cfi && body.percent_completed == null && delta <= 0) {
+    return;
+  }
+  await api.postProgress(book.value.id, body);
+}
+
+function applyPercentFromCfi(cfi: string) {
+  if (!locationsReady || !cfi || !epub) return;
+  try {
+    const p = epub.locations.percentageFromCfi(cfi);
+    if (typeof p === "number" && Number.isFinite(p)) {
+      lastPercent = Math.min(100, Math.max(0, p <= 1 ? p * 100 : p));
+      percentKnown = true;
+    }
+  } catch {
+    /* keep last */
+  }
 }
 
 onMounted(async () => {
@@ -109,7 +137,8 @@ onMounted(async () => {
     const id = Number(props.id);
     const [b, s] = await Promise.all([api.getBook(id), api.settings()]);
     book.value = b;
-    settings.value = s;
+    settings.value = { ...s, accent: s.accent || "amber" };
+    applyAccent(settings.value.accent);
     if (b.file_missing) {
       error.value = "This file is missing from the library.";
       loading.value = false;
@@ -117,6 +146,8 @@ onMounted(async () => {
     }
     lastCfi = b.current_cfi;
     lastPercent = b.percent_completed;
+    percentKnown = b.percent_completed > 0;
+    locationsReady = false;
     loading.value = true;
     await nextTick();
     const el = host.value;
@@ -154,16 +185,16 @@ onMounted(async () => {
     rendition.on("relocated", (loc) => {
       const cfi = loc.start?.cfi ?? "";
       lastCfi = cfi;
-      try {
-        const p = epub?.locations.percentageFromCfi(cfi);
-        if (typeof p === "number" && Number.isFinite(p)) {
-          lastPercent = Math.min(100, Math.max(0, p <= 1 ? p * 100 : p));
-        }
-      } catch {
-        /* keep last */
-      }
+      applyPercentFromCfi(cfi);
     });
-    void epub.locations.generate(1600).catch(() => undefined);
+    void epub.locations.generate(1600)
+      .then(() => {
+        if (closed) return;
+        locationsReady = true;
+        applyPercentFromCfi(lastCfi);
+        void sendProgress(0);
+      })
+      .catch(() => undefined);
     resizeObserver = new ResizeObserver(() => {
       if (!rendition || !host.value) return;
       const size = hostSize(host.value);
@@ -194,12 +225,17 @@ async function go(dir: "prev" | "next") {
   if (dir === "next") await rendition.next();
   else await rendition.prev();
 }
+
+function leaveReader() {
+  const dest = book.value ? `/books/${book.value.id}` : "/library";
+  router.replace(dest);
+}
 </script>
 
 <template>
   <div class="fixed inset-0 flex flex-col" :style="{ background: chromeBg(), color: chromeFg() }">
     <header class="safe-top flex shrink-0 items-center justify-between px-3 py-2">
-      <button type="button" class="rounded-full p-2" @click="router.push(book ? `/books/${book.id}` : '/')">
+      <button type="button" class="rounded-full p-2" @click="leaveReader">
         <ChevronLeft :size="24" />
       </button>
       <p class="max-w-[60%] truncate text-sm font-medium">{{ book?.title }}</p>
@@ -240,13 +276,13 @@ async function go(dir: "prev" | "next") {
       <div class="mb-3 flex items-center justify-between">
         <p class="text-sm font-semibold">Reader</p>
         <div class="flex gap-2">
-          <button type="button" class="rounded-full p-2" :class="settings.theme === 'light' ? 'ring-2 ring-amber-600' : ''" @click="settings.theme = 'light'; persistSettings()">
+          <button type="button" class="rounded-full p-2" :class="settings.theme === 'light' ? 'ring-2 ring-accent-bar' : ''" @click="settings.theme = 'light'; persistSettings()">
             <Sun :size="18" />
           </button>
-          <button type="button" class="rounded-full p-2" :class="settings.theme === 'dark' ? 'ring-2 ring-amber-600' : ''" @click="settings.theme = 'dark'; persistSettings()">
+          <button type="button" class="rounded-full p-2" :class="settings.theme === 'dark' ? 'ring-2 ring-accent-bar' : ''" @click="settings.theme = 'dark'; persistSettings()">
             <Moon :size="18" />
           </button>
-          <button type="button" class="rounded-full p-2" :class="settings.theme === 'sepia' ? 'ring-2 ring-amber-600' : ''" @click="settings.theme = 'sepia'; persistSettings()">
+          <button type="button" class="rounded-full p-2" :class="settings.theme === 'sepia' ? 'ring-2 ring-accent-bar' : ''" @click="settings.theme = 'sepia'; persistSettings()">
             <Lamp :size="18" />
           </button>
         </div>

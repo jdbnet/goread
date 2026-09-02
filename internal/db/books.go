@@ -121,9 +121,9 @@ func (d *DB) ListBooks(p BookListParams) ([]Book, int, error) {
 	}
 	switch p.Status {
 	case "unread":
-		where = append(where, `(p.book_id IS NULL OR (COALESCE(p.percent_completed, 0) = 0 AND p.completed_at IS NULL))`)
+		where = append(where, `(p.book_id IS NULL OR (p.completed_at IS NULL AND COALESCE(p.percent_completed, 0) = 0 AND COALESCE(p.current_cfi, '') = ''))`)
 	case "reading":
-		where = append(where, `p.book_id IS NOT NULL AND p.completed_at IS NULL AND COALESCE(p.percent_completed, 0) > 0`)
+		where = append(where, `p.book_id IS NOT NULL AND p.completed_at IS NULL AND (COALESCE(p.percent_completed, 0) > 0 OR COALESCE(p.current_cfi, '') != '')`)
 	case "completed":
 		where = append(where, `p.completed_at IS NOT NULL`)
 	}
@@ -175,7 +175,8 @@ func (d *DB) ContinueReading(limit int) ([]Book, error) {
 		limit = 12
 	}
 	q := bookSelect + `
-WHERE p.book_id IS NOT NULL AND p.completed_at IS NULL AND COALESCE(p.percent_completed, 0) > 0
+WHERE p.book_id IS NOT NULL AND p.completed_at IS NULL
+  AND (COALESCE(p.percent_completed, 0) > 0 OR COALESCE(p.current_cfi, '') != '')
 ORDER BY p.last_read_at DESC
 LIMIT ?`
 	rows, err := d.SQL.Query(q, limit)

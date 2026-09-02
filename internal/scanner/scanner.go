@@ -239,6 +239,20 @@ func WriteCoverBytes(dataDir string, bookID int64, data []byte, ext string) (str
 	return dest, nil
 }
 
+func ReplaceCoverBytes(dataDir string, bookID int64, data []byte, ext string) (string, error) {
+	dest, err := WriteCoverBytes(dataDir, bookID, data, ext)
+	if err != nil {
+		return "", err
+	}
+	matches, _ := filepath.Glob(filepath.Join(dataDir, "covers", fmt.Sprintf("%d.*", bookID)))
+	for _, p := range matches {
+		if filepath.Clean(p) != filepath.Clean(dest) {
+			_ = os.Remove(p)
+		}
+	}
+	return dest, nil
+}
+
 func AddUserField(fields []string, name string) []string {
 	for _, f := range fields {
 		if f == name {

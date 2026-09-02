@@ -12,6 +12,7 @@ defineProps<{ book: Book; compact?: boolean }>();
   >
     <img
       v-if="book.has_cover && book.cover_url"
+      :key="book.cover_url"
       :src="book.cover_url"
       :alt="book.title"
       class="h-full w-full object-cover"
