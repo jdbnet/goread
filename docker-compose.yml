@@ -1,5 +1,6 @@
 services:
-  app:
+  ebook-reader:
+    image: ghcr.io/jdbnet/ebook-reader:latest
     build: .
     ports:
       - "8080:8080"
@@ -12,8 +13,8 @@ services:
       # Existing EPUB library. Read-only: the app never rewrites books.
       - ${LIBRARY_HOST_PATH:-./library}:/library:ro
       # SQLite database and extracted/matched covers.
-      - ${DATA_HOST_PATH:-data}:/data
+      - ebook-reader-data:/data
     restart: unless-stopped
 
 volumes:
-  data:
+  ebook-reader-data:
