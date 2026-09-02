@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,9 +15,14 @@ import (
 	appdb "ebook-reader/internal/db"
 	"ebook-reader/internal/metadata"
 	"ebook-reader/internal/scanner"
+	"ebook-reader/internal/version"
 )
 
 func main() {
+	if wantsVersion(os.Args[1:]) {
+		fmt.Println(version.Version)
+		return
+	}
 	cfg, err := config.Load(os.Args[1:])
 	if err != nil {
 		log.Fatal(err)
@@ -69,7 +75,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("ebook-reader listening on %s (library=%s data=%s tz=%s)", cfg.Listen, cfg.LibraryPath, cfg.DataDir, cfg.Timezone)
+		log.Printf("ebook-reader %s listening on %s (library=%s data=%s tz=%s)", version.Version, cfg.Listen, cfg.LibraryPath, cfg.DataDir, cfg.Timezone)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
@@ -82,4 +88,13 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(ctx)
+}
+
+func wantsVersion(args []string) bool {
+	for _, a := range args {
+		if a == "-version" || a == "--version" {
+			return true
+		}
+	}
+	return false
 }
