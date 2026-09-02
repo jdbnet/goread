@@ -83,7 +83,7 @@ onMounted(load);
           {{ book.series_name }}
           <span v-if="book.sequence_number != null">· {{ book.sequence_number }}</span>
         </p>
-        <div v-if="book.percent_completed > 0" class="mt-3 max-w-xs">
+        <div v-if="!book.completed_at && book.percent_completed > 0" class="mt-3 max-w-xs">
           <ProgressBar :value="book.percent_completed" />
           <p class="mt-1 text-xs text-stone-500">{{ Math.round(book.percent_completed) }}%</p>
         </div>
@@ -95,7 +95,7 @@ onMounted(load);
             @click="router.replace(`/read/${book.id}`)"
           >
             <BookOpen :size="16" />
-            {{ book.percent_completed > 0 ? "Continue" : "Read" }}
+            {{ book.completed_at || book.percent_completed <= 0 ? "Read" : "Continue" }}
           </button>
           <button
             type="button"

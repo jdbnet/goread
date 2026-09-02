@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpen } from "@lucide/vue";
+import { BookOpen, Check } from "@lucide/vue";
 import type { Book } from "../types";
 
 defineProps<{ book: Book; compact?: boolean }>();
@@ -16,10 +16,23 @@ defineProps<{ book: Book; compact?: boolean }>();
       :src="book.cover_url"
       :alt="book.title"
       class="h-full w-full object-cover"
+      :class="book.completed_at ? 'opacity-70' : ''"
     />
-    <div v-else class="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-stone-400">
+    <div
+      v-else
+      class="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-stone-400"
+      :class="book.completed_at ? 'opacity-70' : ''"
+    >
       <BookOpen :size="compact ? 22 : 32" />
       <span class="line-clamp-3 text-center text-xs font-medium text-stone-500">{{ book.title }}</span>
+    </div>
+    <div
+      v-if="book.completed_at"
+      class="absolute right-1.5 top-1.5 flex items-center justify-center rounded-full bg-accent text-white shadow-sm"
+      :class="compact ? 'h-5 w-5' : 'h-7 w-7'"
+      aria-label="Completed"
+    >
+      <Check :size="compact ? 12 : 16" :stroke-width="3" />
     </div>
     <div
       v-if="book.file_missing"

@@ -45,6 +45,9 @@ func (d *DB) UpsertProgress(bookID int64, cfi string, percent float64, secondsDe
 			if p.CompletedAt == nil {
 				p.CompletedAt = &now
 			}
+			if p.PercentCompleted < 100 {
+				p.PercentCompleted = 100
+			}
 		} else {
 			p.CompletedAt = nil
 		}
