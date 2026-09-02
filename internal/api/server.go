@@ -44,6 +44,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/books/{id}/cover", s.uploadCover)
 	mux.HandleFunc("POST /api/v1/books/{id}/metadata", s.applyMetadata)
 	mux.HandleFunc("PUT /api/v1/books/{id}/series", s.setSeries)
+	mux.HandleFunc("POST /api/v1/library/series/assign", s.assignSeries)
 	mux.HandleFunc("POST /api/v1/scan", s.postScan)
 	mux.HandleFunc("GET /api/v1/scan", s.getScan)
 	mux.HandleFunc("GET /api/v1/metadata/search", s.searchMetadata)
@@ -123,7 +124,7 @@ func (s *Server) listSeries(w http.ResponseWriter, _ *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"series": series})
+	writeJSON(w, http.StatusOK, map[string]any{"series": seriesListDTOs(series)})
 }
 
 func (s *Server) getSeries(w http.ResponseWriter, r *http.Request) {
@@ -362,6 +363,64 @@ func (s *Server) setSeries(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, bookDTO(updated))
 }
 
+func (s *Server) assignSeries(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		BookIDs []int64 `json:"book_ids"`
+		Name    string  `json:"name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("series name required"))
+		return
+	}
+	seen := make(map[int64]struct{}, len(body.BookIDs))
+	ids := make([]int64, 0, len(body.BookIDs))
+	for _, id := range body.BookIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("no books selected"))
+		return
+	}
+	if len(ids) > 200 {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("too many books"))
+		return
+	}
+	for _, id := range ids {
+		b, err := s.DB.GetBook(id)
+		if err != nil {
+			writeErr(w, http.StatusNotFound, fmt.Errorf("book %d not found", id))
+			return
+		}
+		var seq *float64
+		if strings.EqualFold(b.SeriesName, name) {
+			seq = b.Sequence
+		}
+		if err := s.DB.SetBookSeries(id, name, seq); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		b.UserSetFields = scanner.AddUserField(b.UserSetFields, "series")
+		if err := s.DB.UpdateBook(b); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	_ = s.DB.DeleteEmptySeries()
+	writeJSON(w, http.StatusOK, map[string]any{"count": len(ids), "name": name})
+}
+
 func (s *Server) postScan(w http.ResponseWriter, r *http.Request) {
 	if s.Scan.Running() {
 		writeJSON(w, http.StatusConflict, map[string]any{"error": "scan already running", "running": true})
@@ -515,13 +574,46 @@ func bookDTO(b appdb.Book) bookJSON {
 		CreatedAt:       b.CreatedAt,
 	}
 	if b.CoverPath != "" {
-		v := b.UpdatedAt.UnixMilli()
-		if v == 0 {
-			v = time.Now().UnixMilli()
-		}
-		j.CoverURL = fmt.Sprintf("/api/v1/books/%d/cover?v=%d", b.ID, v)
+		j.CoverURL = coverURL(b)
 	}
 	return j
+}
+
+func coverURL(b appdb.Book) string {
+	v := b.UpdatedAt.UnixMilli()
+	if v == 0 {
+		v = time.Now().UnixMilli()
+	}
+	return fmt.Sprintf("/api/v1/books/%d/cover?v=%d", b.ID, v)
+}
+
+type seriesListJSON struct {
+	ID          int64    `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	BookCount   int      `json:"book_count"`
+	CoverURLs   []string `json:"cover_urls"`
+}
+
+func seriesListDTOs(items []appdb.Series) []seriesListJSON {
+	out := make([]seriesListJSON, 0, len(items))
+	for _, s := range items {
+		j := seriesListJSON{
+			ID:          s.ID,
+			Name:        s.Name,
+			Description: s.Description,
+			BookCount:   s.BookCount,
+			CoverURLs:   make([]string, 0, 3),
+		}
+		for _, b := range s.Books {
+			if b.CoverPath == "" {
+				continue
+			}
+			j.CoverURLs = append(j.CoverURLs, coverURL(b))
+		}
+		out = append(out, j)
+	}
+	return out
 }
 
 func bookDTOs(books []appdb.Book) []bookJSON {

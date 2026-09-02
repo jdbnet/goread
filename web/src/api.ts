@@ -71,6 +71,12 @@ export const api = {
       body: JSON.stringify({ name, sequence_number }),
     });
   },
+  assignSeries(book_ids: number[], name: string): Promise<{ count: number; name: string }> {
+    return req("/api/v1/library/series/assign", {
+      method: "POST",
+      body: JSON.stringify({ book_ids, name }),
+    });
+  },
   scan(): Promise<{ started: boolean; running: boolean }> {
     return req("/api/v1/scan", { method: "POST" });
   },

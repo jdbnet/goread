@@ -27,6 +27,7 @@ export type Series = {
   name: string;
   description: string;
   book_count: number;
+  cover_urls?: string[];
   books?: Book[];
 };
 

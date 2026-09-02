@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
-import { Search, SlidersHorizontal } from "@lucide/vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { Layers, Search, SlidersHorizontal, SquareCheck, X } from "@lucide/vue";
 import { api } from "../api";
 import type { Book } from "../types";
 import BookCard from "../components/BookCard.vue";
+import AddToSeriesModal from "../components/AddToSeriesModal.vue";
 
 const books = ref<Book[]>([]);
 const total = ref(0);
@@ -15,6 +16,12 @@ const authors = ref<string[]>([]);
 const page = ref(1);
 const loading = ref(false);
 const showFilters = ref(false);
+const selecting = ref(false);
+const selected = ref<number[]>([]);
+const showSeriesModal = ref(false);
+const notice = ref("");
+
+const selectedCount = computed(() => selected.value.length);
 
 async function load() {
   loading.value = true;
@@ -52,14 +59,67 @@ watch(q, () => {
     void load();
   }, 250);
 });
+
+function toggleSelectMode() {
+  selecting.value = !selecting.value;
+  selected.value = [];
+  notice.value = "";
+}
+
+function toggleBook(id: number) {
+  if (selected.value.includes(id)) {
+    selected.value = selected.value.filter((x) => x !== id);
+  } else {
+    selected.value = [...selected.value, id];
+  }
+}
+
+function isSelected(id: number): boolean {
+  return selected.value.includes(id);
+}
+
+function onAssigned(name: string) {
+  showSeriesModal.value = false;
+  selecting.value = false;
+  selected.value = [];
+  notice.value = `Added to ${name}`;
+  void load();
+}
 </script>
 
 <template>
   <div>
-    <header class="mb-4">
-      <h1 class="text-2xl font-bold tracking-tight">Library</h1>
-      <p class="text-sm text-stone-500">{{ total }} books</p>
+    <header class="mb-4 flex items-start justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Library</h1>
+        <p class="text-sm text-stone-500">
+          <template v-if="selecting">{{ selectedCount }} selected</template>
+          <template v-else>{{ total }} books</template>
+        </p>
+      </div>
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-3 py-2 text-sm font-medium dark:border-stone-700 dark:bg-stone-900"
+        @click="toggleSelectMode"
+      >
+        <X v-if="selecting" :size="16" />
+        <SquareCheck v-else :size="16" />
+        {{ selecting ? "Cancel" : "Select" }}
+      </button>
     </header>
+
+    <p v-if="notice" class="mb-3 text-sm text-stone-500">{{ notice }}</p>
+
+    <div v-if="selecting && selectedCount > 0" class="mb-4 flex gap-2">
+      <button
+        type="button"
+        class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white"
+        @click="showSeriesModal = true"
+      >
+        <Layers :size="16" />
+        Add to series
+      </button>
+    </div>
 
     <div class="mb-4 flex gap-2">
       <label class="relative flex-1">
@@ -101,7 +161,14 @@ watch(q, () => {
 
     <div v-if="loading && !books.length" class="text-sm text-stone-500">Loading…</div>
     <div v-else class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
-      <BookCard v-for="b in books" :key="b.id" :book="b" />
+      <BookCard
+        v-for="b in books"
+        :key="b.id"
+        :book="b"
+        :selecting="selecting"
+        :selected="isSelected(b.id)"
+        @toggle="toggleBook(b.id)"
+      />
     </div>
 
     <div v-if="total > 24" class="mt-6 flex justify-center gap-3">
@@ -123,5 +190,12 @@ watch(q, () => {
         Next
       </button>
     </div>
+
+    <AddToSeriesModal
+      v-if="showSeriesModal"
+      :book-ids="selected"
+      @close="showSeriesModal = false"
+      @assigned="onAssigned"
+    />
   </div>
 </template>
