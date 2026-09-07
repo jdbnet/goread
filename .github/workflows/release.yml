@@ -56,7 +56,7 @@ jobs:
           (cd dist && sha256sum ebook-reader-linux-amd64 > sha256sums.txt)
 
       - name: Attach binaries to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.VERSION }}
           name: ${{ env.VERSION }}
