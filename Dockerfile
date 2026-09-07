@@ -15,7 +15,7 @@ RUN rm -rf internal/ui/dist && mkdir -p internal/ui/dist
 COPY --from=web /web/dist ./internal/ui/dist
 RUN CGO_ENABLED=0 go build -ldflags "-s -w -X ebook-reader/internal/version.Version=${VERSION}" -o /ebook-reader ./cmd/app
 
-FROM alpine:3.21
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=build /ebook-reader /usr/local/bin/ebook-reader
 EXPOSE 8080
