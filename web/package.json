@@ -12,7 +12,7 @@
     "@lucide/vue": "^1.39.0",
     "epubjs": "^0.3.93",
     "vue": "^3.5.21",
-    "vue-router": "^4.5.1"
+    "vue-router": "^5.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",
