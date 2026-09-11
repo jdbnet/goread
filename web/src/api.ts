@@ -167,3 +167,12 @@ export function stripHtml(html: string): string {
   tmp.innerHTML = html;
   return (tmp.textContent || tmp.innerText || "").trim();
 }
+
+export function formatPubDate(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^\d{4}$/.test(trimmed)) return trimmed;
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return trimmed;
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+}

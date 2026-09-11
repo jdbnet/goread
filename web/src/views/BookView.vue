@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowLeft, BookOpen, Search, AlertTriangle, Check, Pencil, LoaderCircle } from "@lucide/vue";
-import { api, stripHtml } from "../api";
+import { api, formatPubDate, stripHtml } from "../api";
 import type { Book, MetadataHit } from "../types";
 import CoverImage from "../components/CoverImage.vue";
 import ProgressBar from "../components/ProgressBar.vue";
@@ -128,7 +128,7 @@ onMounted(load);
     </p>
     <dl class="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
       <div v-if="book.publisher"><dt class="text-xs text-stone-500">Publisher</dt><dd>{{ book.publisher }}</dd></div>
-      <div v-if="book.pub_date"><dt class="text-xs text-stone-500">Published</dt><dd>{{ book.pub_date }}</dd></div>
+      <div v-if="book.pub_date"><dt class="text-xs text-stone-500">Published</dt><dd>{{ formatPubDate(book.pub_date) }}</dd></div>
       <div v-if="book.isbn"><dt class="text-xs text-stone-500">ISBN</dt><dd>{{ book.isbn }}</dd></div>
       <div v-if="book.language"><dt class="text-xs text-stone-500">Language</dt><dd>{{ book.language }}</dd></div>
     </dl>
