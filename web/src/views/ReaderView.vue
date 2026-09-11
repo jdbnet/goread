@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import ePub from "epubjs";
+import EpubImport from "epubjs";
 import type { Book as EpubBook, Rendition } from "epubjs";
+
+const ePub =
+  typeof EpubImport === "function"
+    ? EpubImport
+    : (EpubImport as { default: typeof EpubImport }).default;
 import { ChevronLeft, Settings2, Sun, Moon, Lamp } from "@lucide/vue";
 import { api } from "../api";
 import { applyAccent } from "../accent";
@@ -157,26 +162,23 @@ onMounted(async () => {
       return;
     }
     const { width, height } = await waitForHost(el);
-    epub = ePub(`/api/v1/books/${id}/file`, { openAs: "epub" });
+    epub = ePub(`/api/v1/books/${id}/file`, {
+      openAs: "epub",
+      replacements: "blobUrl",
+      requestCredentials: true,
+    });
     rendition = epub.renderTo(el, {
       width,
       height,
       flow: "paginated",
       spread: "none",
       allowScriptedContent: true,
-      method: "blobUrl",
     });
     await withTimeout(epub.ready, 20000, "Timed out opening this EPUB.");
     if (closed) return;
-    await withTimeout(rendition.display(), 12000, "Timed out rendering the first page.");
+    const initialTarget = b.current_cfi || undefined;
+    await withTimeout(rendition.display(initialTarget), 12000, "Timed out rendering the first page.");
     applyTheme();
-    if (b.current_cfi) {
-      try {
-        await rendition.display(b.current_cfi);
-      } catch {
-        await rendition.display();
-      }
-    }
     if (closed) return;
     const sized = hostSize(el);
     rendition.resize(sized.width, sized.height);

@@ -28,5 +28,12 @@ declare module "epubjs" {
     destroy(): void;
   }
 
-  export default function ePub(url: string | ArrayBuffer, options?: { openAs?: string }): Book;
+  export default function ePub(
+    url: string | ArrayBuffer,
+    options?: {
+      openAs?: string;
+      replacements?: "none" | "base64" | "blobUrl";
+      requestCredentials?: boolean;
+    },
+  ): Book;
 }
