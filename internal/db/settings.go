@@ -4,7 +4,7 @@ func (d *DB) GetSettings() (Settings, error) {
 	var s Settings
 	err := d.SQL.QueryRow(`SELECT font_size, line_height, theme, accent FROM reader_settings WHERE id = 1`).Scan(&s.FontSize, &s.LineHeight, &s.Theme, &s.Accent)
 	if err != nil {
-		return Settings{FontSize: 18, LineHeight: 1.6, Theme: "light", Accent: "amber"}, err
+		return Settings{FontSize: 18, LineHeight: 1.6, Theme: "light", Accent: "emerald"}, err
 	}
 	s.Accent = normalizeAccent(s.Accent)
 	return s, nil
@@ -43,6 +43,6 @@ func normalizeAccent(s string) string {
 	case "amber", "orange", "rose", "red", "emerald", "teal", "sky", "indigo", "violet", "pink":
 		return s
 	default:
-		return "amber"
+		return "emerald"
 	}
 }

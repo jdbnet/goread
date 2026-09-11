@@ -3,6 +3,6 @@ data
 library
 web/node_modules
 web/dist
-ebook-reader
+goread
 *.md
 .env

@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="web/public/logo.png" alt="eBook Reader" width="128" />
+  <img src="web/public/logo.png" alt="GoRead" width="128" />
 
-  # eBook Reader
+  # GoRead
 
   A self-hosted EPUB reader: scan a folder of books, read in the browser, match metadata, and track progress. Single user. Login is optional: set a username and password in Settings when you want one.
 
@@ -19,14 +19,14 @@ You can change the username or password later from Settings (current password re
 
 ## Docker
 
-Published images: [`ghcr.io/jdbnet/ebook-reader`](https://github.com/jdbnet/ebook-reader/pkgs/container/ebook-reader).
+Published images: [`ghcr.io/jdbnet/goread`](https://github.com/jdbnet/goread/pkgs/container/goread).
 
 Copy `docker-compose.yml` from this repo, or use:
 
 ```yaml
 services:
-  ebook-reader:
-    image: ghcr.io/jdbnet/ebook-reader:latest
+  goread:
+    image: ghcr.io/jdbnet/goread:latest
     ports:
       - "8080:8080"
     environment:
@@ -38,11 +38,11 @@ services:
       # Your existing EPUB folder. Read-only: the app never rewrites books.
       - /path/to/ebooks:/library:ro
       # SQLite database and covers.
-      - ebook-reader-data:/data
+      - goread-data:/data
     restart: unless-stopped
 
 volumes:
-  ebook-reader-data:
+  goread-data:
 ```
 
 Replace `/path/to/ebooks` with the folder that holds your `.epub` files, then:
@@ -51,7 +51,7 @@ Replace `/path/to/ebooks` with the folder that holds your `.epub` files, then:
 docker compose up -d
 ```
 
-Open `http://localhost:8080`. If you have enabled login in Settings, you will be asked to sign in. Pin a version with `ghcr.io/jdbnet/ebook-reader:v1.0.0` instead of `:latest`.
+Open `http://localhost:8080`. If you have enabled login in Settings, you will be asked to sign in. Pin a version with `ghcr.io/jdbnet/goread:v1.0.0` instead of `:latest`.
 
 The compose file in this repo uses the same image. Set `LIBRARY_HOST_PATH` if you do not want `./library`:
 
@@ -63,11 +63,11 @@ To build locally instead of pulling: `docker compose up -d --build`.
 
 ## Binary
 
-Download `ebook-reader-linux-amd64` from [GitHub Releases](https://github.com/jdbnet/ebook-reader/releases/latest).
+Download `goread-linux-amd64` from [GitHub Releases](https://github.com/jdbnet/goread/releases/latest).
 
 ```bash
-chmod +x ebook-reader-linux-amd64
-./ebook-reader-linux-amd64 --library /path/to/ebooks --data ./data
+chmod +x goread-linux-amd64
+./goread-linux-amd64 --library /path/to/ebooks --data ./data
 ```
 
 Then open `http://localhost:8080`. Same as Docker: the library is reachable immediately until you set a login in Settings.
@@ -86,5 +86,5 @@ Flags and environment variables are equivalent. Library path is required.
 | `--fsnotify` | `FSNOTIFY` | `true` | Watch the library for file changes |
 
 ```bash
-./ebook-reader-linux-amd64 --version
+./goread-linux-amd64 --version
 ```

@@ -35,7 +35,7 @@ async function submit() {
       @submit.prevent="submit"
     >
       <img src="/logo.png" alt="" class="mx-auto h-16 w-16" width="64" height="64" />
-      <h1 class="mt-4 text-center text-xl font-bold tracking-tight">eBook Reader</h1>
+      <h1 class="mt-4 text-center text-xl font-bold tracking-tight">GoRead</h1>
       <p class="mt-1 text-center text-sm text-stone-500">Sign in to continue</p>
 
       <label class="mt-6 block text-xs font-medium text-stone-500" for="login-username">Username</label>

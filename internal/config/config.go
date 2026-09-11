@@ -34,7 +34,7 @@ func Load(args []string) (Config, error) {
 	}
 	cfg.ScanInterval = interval
 
-	fs := flag.NewFlagSet("ebook-reader", flag.ContinueOnError)
+	fs := flag.NewFlagSet("goread", flag.ContinueOnError)
 	fs.StringVar(&cfg.LibraryPath, "library", cfg.LibraryPath, "path to the EPUB library directory (LIBRARY_PATH)")
 	fs.StringVar(&cfg.DataDir, "data", cfg.DataDir, "data directory for sqlite and covers (DATA_DIR)")
 	fs.StringVar(&cfg.Listen, "listen", cfg.Listen, "listen address (LISTEN)")

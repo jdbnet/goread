@@ -148,8 +148,10 @@ export const ACCENTS: AccentPalette[] = [
   },
 ];
 
+const DEFAULT_ACCENT: AccentId = "emerald";
+
 export function applyAccent(id: string): void {
-  const p = ACCENTS.find((a) => a.id === id) ?? ACCENTS[0];
+  const p = ACCENTS.find((a) => a.id === id) ?? ACCENTS.find((a) => a.id === DEFAULT_ACCENT)!;
   const root = document.documentElement;
   root.style.setProperty("--accent", p.accent);
   root.style.setProperty("--accent-strong", p.strong);
@@ -166,8 +168,8 @@ export function applyAccent(id: string): void {
 export async function loadAccent(): Promise<void> {
   try {
     const status = await getAuthStatus();
-    applyAccent(status.accent || "amber");
+    applyAccent(status.accent || DEFAULT_ACCENT);
   } catch {
-    applyAccent("amber");
+    applyAccent(DEFAULT_ACCENT);
   }
 }

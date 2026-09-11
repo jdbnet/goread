@@ -146,7 +146,7 @@ async function logout() {
     <h1 class="mb-5 text-2xl font-bold tracking-tight">Settings</h1>
     <section>
       <h2 class="text-lg font-semibold">Accent colour</h2>
-      <p class="mt-1 text-sm text-stone-500">Used for buttons, progress, and highlights. Amber is the default.</p>
+      <p class="mt-1 text-sm text-stone-500">Used for buttons, progress, and highlights. Emerald is the default.</p>
       <ul class="mt-4 grid grid-cols-5 gap-3 sm:grid-cols-10">
         <li v-for="c in ACCENTS" :key="c.id">
           <button

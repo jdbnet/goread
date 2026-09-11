@@ -1,4 +1,4 @@
-module ebook-reader
+module goread
 
 go 1.26.4
 

@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"ebook-reader/internal/api"
-	"ebook-reader/internal/config"
-	appdb "ebook-reader/internal/db"
-	"ebook-reader/internal/metadata"
-	"ebook-reader/internal/scanner"
-	"ebook-reader/internal/version"
+	"goread/internal/api"
+	"goread/internal/config"
+	appdb "goread/internal/db"
+	"goread/internal/metadata"
+	"goread/internal/scanner"
+	"goread/internal/version"
 )
 
 func main() {
@@ -75,7 +75,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("ebook-reader %s listening on %s (library=%s data=%s tz=%s)", version.Version, cfg.Listen, cfg.LibraryPath, cfg.DataDir, cfg.Timezone)
+		log.Printf("goread %s listening on %s (library=%s data=%s tz=%s)", version.Version, cfg.Listen, cfg.LibraryPath, cfg.DataDir, cfg.Timezone)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}

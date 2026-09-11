@@ -14,15 +14,15 @@
 }
 
 html {
-  --accent: #b45309;
-  --accent-strong: #92400e;
-  --accent-soft: #fbbf24;
-  --accent-bar: #d97706;
-  --accent-bar-dark: #f59e0b;
-  --accent-muted: #fef3c7;
-  --accent-muted-fg: #92400e;
-  --accent-muted-dark: #451a03;
-  --accent-muted-fg-dark: #fcd34d;
+  --accent: #047857;
+  --accent-strong: #065f46;
+  --accent-soft: #34d399;
+  --accent-bar: #059669;
+  --accent-bar-dark: #10b981;
+  --accent-muted: #d1fae5;
+  --accent-muted-fg: #065f46;
+  --accent-muted-dark: #022c22;
+  --accent-muted-fg-dark: #6ee7b7;
 }
 
 html,

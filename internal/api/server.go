@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"ebook-reader/internal/config"
-	appdb "ebook-reader/internal/db"
-	"ebook-reader/internal/metadata"
-	"ebook-reader/internal/scanner"
-	"ebook-reader/internal/ui"
+	"goread/internal/config"
+	appdb "goread/internal/db"
+	"goread/internal/metadata"
+	"goread/internal/scanner"
+	"goread/internal/ui"
 )
 
 type Server struct {

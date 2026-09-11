@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	appdb "ebook-reader/internal/db"
+	appdb "goread/internal/db"
 )
 
 type Scanner struct {

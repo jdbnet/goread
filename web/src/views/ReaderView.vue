@@ -12,7 +12,7 @@ const props = defineProps<{ id: string }>();
 const router = useRouter();
 const host = ref<HTMLElement | null>(null);
 const book = ref<Book | null>(null);
-const settings = ref<Settings>({ font_size: 18, line_height: 1.6, theme: "light", accent: "amber" });
+const settings = ref<Settings>({ font_size: 18, line_height: 1.6, theme: "light", accent: "emerald" });
 const showSettings = ref(false);
 const error = ref("");
 const loading = ref(true);
@@ -137,7 +137,7 @@ onMounted(async () => {
     const id = Number(props.id);
     const [b, s] = await Promise.all([api.getBook(id), api.settings()]);
     book.value = b;
-    settings.value = { ...s, accent: s.accent || "amber" };
+    settings.value = { ...s, accent: s.accent || "emerald" };
     applyAccent(settings.value.accent);
     if (b.file_missing) {
       error.value = "This file is missing from the library.";

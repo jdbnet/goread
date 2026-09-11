@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appdb "ebook-reader/internal/db"
+	appdb "goread/internal/db"
 )
 
 func testAPI(t *testing.T) (*httptest.Server, *http.Client) {

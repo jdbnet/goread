@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	appdb "ebook-reader/internal/db"
+	appdb "goread/internal/db"
 )
 
 const (
-	sessionCookie = "ebook_session"
+	sessionCookie = "goread_session"
 	sessionTTL    = 30 * 24 * time.Hour
 )
 
@@ -253,7 +253,7 @@ func (s *Server) postDisableAuth(w http.ResponseWriter, r *http.Request) {
 func (s *Server) writeAuthStatus(w http.ResponseWriter, st authStatusJSON) {
 	settings, err := s.DB.GetSettings()
 	if err != nil {
-		st.Accent = "amber"
+		st.Accent = "emerald"
 	} else {
 		st.Accent = settings.Accent
 	}

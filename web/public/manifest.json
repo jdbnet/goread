@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "eBook Reader",
-  "short_name": "eBooks",
+  "name": "GoRead",
+  "short_name": "GoRead",
   "description": "Self-hosted EPUB reader",
   "start_url": "/",
   "scope": "/",
