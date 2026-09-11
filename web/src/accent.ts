@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { getAuthStatus } from "./auth";
 import type { AccentId } from "./types";
 
 export type AccentPalette = {
@@ -165,8 +165,8 @@ export function applyAccent(id: string): void {
 
 export async function loadAccent(): Promise<void> {
   try {
-    const s = await api.settings();
-    applyAccent(s.accent || "amber");
+    const status = await getAuthStatus();
+    applyAccent(status.accent || "amber");
   } catch {
     applyAccent("amber");
   }

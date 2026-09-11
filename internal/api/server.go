@@ -34,6 +34,11 @@ func New(db *appdb.DB, sc *scanner.Scanner, meta *metadata.Client, cfg config.Co
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /api/v1/auth/status", s.getAuthStatus)
+	mux.HandleFunc("POST /api/v1/auth/login", s.postLogin)
+	mux.HandleFunc("POST /api/v1/auth/logout", s.postLogout)
+	mux.HandleFunc("PUT /api/v1/auth/credentials", s.putCredentials)
+	mux.HandleFunc("POST /api/v1/auth/disable", s.postDisableAuth)
 	mux.HandleFunc("GET /api/v1/library/books", s.listBooks)
 	mux.HandleFunc("GET /api/v1/library/series", s.listSeries)
 	mux.HandleFunc("GET /api/v1/library/authors", s.listAuthors)
@@ -54,7 +59,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/settings", s.getSettings)
 	mux.HandleFunc("PUT /api/v1/settings", s.putSettings)
 	mux.Handle("/", ui.Handler())
-	return logging(mux)
+	return logging(s.requireAuth(mux))
 }
 
 func logging(next http.Handler) http.Handler {

@@ -3,11 +3,19 @@
 
   # eBook Reader
 
-  A self-hosted EPUB reader: scan a folder of books, read in the browser, match metadata, and track progress. Single user, no login. Bind it to your LAN, or put a reverse proxy in front if it is on a public IP.
+  A self-hosted EPUB reader: scan a folder of books, read in the browser, match metadata, and track progress. Single user. Login is optional: set a username and password in Settings when you want one.
 
 </div>
 
 The app never writes to your EPUB files. Covers and the SQLite database live in a separate data directory.
+
+## Authentication
+
+The app starts open. Anyone who can reach it can use it until you turn login on.
+
+To require a login, open **Settings**, choose a username and password (at least 8 characters), and save. After that, every visit needs those credentials. The password is hashed in the SQLite database; it is not stored in plaintext. Sessions last 30 days.
+
+You can change the username or password later from Settings (current password required). To go back to an open app, enter the current password and turn login off.
 
 ## Docker
 
@@ -43,7 +51,7 @@ Replace `/path/to/ebooks` with the folder that holds your `.epub` files, then:
 docker compose up -d
 ```
 
-Open `http://localhost:8080`. Pin a version with `ghcr.io/jdbnet/ebook-reader:v1.0.0` instead of `:latest`.
+Open `http://localhost:8080`. If you have enabled login in Settings, you will be asked to sign in. Pin a version with `ghcr.io/jdbnet/ebook-reader:v1.0.0` instead of `:latest`.
 
 The compose file in this repo uses the same image. Set `LIBRARY_HOST_PATH` if you do not want `./library`:
 
@@ -62,7 +70,7 @@ chmod +x ebook-reader-linux-amd64
 ./ebook-reader-linux-amd64 --library /path/to/ebooks --data ./data
 ```
 
-Then open `http://localhost:8080`.
+Then open `http://localhost:8080`. Same as Docker: the library is reachable immediately until you set a login in Settings.
 
 ## Configuration
 

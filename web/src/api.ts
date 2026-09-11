@@ -1,7 +1,34 @@
-import type { Book, BookListResponse, MetadataHit, Progress, Series, Settings, Stats } from "./types";
+import type { AuthStatus, Book, BookListResponse, MetadataHit, Progress, Series, Settings, Stats } from "./types";
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+function redirectToLogin(): void {
+  if (window.location.pathname === "/login") return;
+  const next = window.location.pathname + window.location.search;
+  window.location.assign(`/login?redirect=${encodeURIComponent(next)}`);
+}
+
+async function readError(res: Response): Promise<string> {
+  let message = res.statusText;
+  try {
+    const body = (await res.json()) as { error?: string };
+    if (body.error) message = body.error;
+  } catch {
+    /* ignore */
+  }
+  return message;
+}
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
+    credentials: "same-origin",
     ...init,
     headers: {
       Accept: "application/json",
@@ -9,20 +36,35 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
+  if (res.status === 401 && path !== "/api/v1/auth/login" && path !== "/api/v1/auth/status") {
+    redirectToLogin();
+  }
   if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(message);
+    throw new ApiError(res.status, await readError(res));
   }
   return (await res.json()) as T;
 }
 
 export const api = {
+  authStatus(): Promise<AuthStatus> {
+    return req("/api/v1/auth/status");
+  },
+  login(username: string, password: string): Promise<AuthStatus> {
+    return req("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+  },
+  logout(): Promise<AuthStatus> {
+    return req("/api/v1/auth/logout", { method: "POST" });
+  },
+  saveCredentials(body: {
+    username: string;
+    password: string;
+    current_password?: string;
+  }): Promise<AuthStatus> {
+    return req("/api/v1/auth/credentials", { method: "PUT", body: JSON.stringify(body) });
+  },
+  disableAuth(password: string): Promise<AuthStatus> {
+    return req("/api/v1/auth/disable", { method: "POST", body: JSON.stringify({ password }) });
+  },
   listBooks(params: Record<string, string | number | undefined> = {}): Promise<BookListResponse> {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
@@ -50,18 +92,12 @@ export const api = {
     return req(`/api/v1/books/${id}/metadata`, { method: "POST", body: JSON.stringify(body) });
   },
   async uploadCover(id: number, file: File): Promise<Book> {
-    const form = new FormData();
-    form.append("cover", file);
-    const res = await fetch(`/api/v1/books/${id}/cover`, { method: "POST", body: form });
+    const res = await fetch(`/api/v1/books/${id}/cover`, { method: "POST", body: formData(file), credentials: "same-origin" });
+    if (res.status === 401) {
+      redirectToLogin();
+    }
     if (!res.ok) {
-      let message = res.statusText;
-      try {
-        const body = (await res.json()) as { error?: string };
-        if (body.error) message = body.error;
-      } catch {
-        /* ignore */
-      }
-      throw new Error(message);
+      throw new ApiError(res.status, await readError(res));
     }
     return (await res.json()) as Book;
   },
@@ -110,6 +146,12 @@ export const api = {
     return req("/api/v1/settings", { method: "PUT", body: JSON.stringify(s) });
   },
 };
+
+function formData(file: File): FormData {
+  const form = new FormData();
+  form.append("cover", file);
+  return form;
+}
 
 export function formatDuration(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));

@@ -7,6 +7,8 @@ import StatsView from "./views/StatsView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import BookView from "./views/BookView.vue";
 import ReaderView from "./views/ReaderView.vue";
+import LoginView from "./views/LoginView.vue";
+import { getAuthStatus, safeRedirect } from "./auth";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -19,8 +21,28 @@ export const router = createRouter({
     { path: "/settings", name: "settings", component: SettingsView },
     { path: "/books/:id", name: "book", component: BookView, props: true },
     { path: "/read/:id", name: "read", component: ReaderView, props: true, meta: { hideChrome: true } },
+    { path: "/login", name: "login", component: LoginView, meta: { hideChrome: true } },
   ],
   scrollBehavior() {
     return { top: 0 };
   },
+});
+
+router.beforeEach(async (to) => {
+  let status;
+  try {
+    status = await getAuthStatus();
+  } catch {
+    return true;
+  }
+  if (to.name === "login") {
+    if (!status.enabled || status.authenticated) {
+      return safeRedirect(to.query.redirect);
+    }
+    return true;
+  }
+  if (status.enabled && !status.authenticated) {
+    return { name: "login", query: { redirect: to.fullPath } };
+  }
+  return true;
 });

@@ -59,6 +59,13 @@ export type Settings = {
   accent: AccentId | string;
 };
 
+export type AuthStatus = {
+  enabled: boolean;
+  authenticated: boolean;
+  username: string;
+  accent: string;
+};
+
 export type DailyStat = {
   day: string;
   time_read_seconds: number;
