@@ -1,50 +1,54 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
-OUT = Path(__file__).resolve().parents[1] / "public"
-
-
-def book_icon(size: int, padding_ratio: float) -> Image.Image:
-    img = Image.new("RGBA", (size, size), (28, 25, 23, 255))
-    draw = ImageDraw.Draw(img)
-    pad = int(size * padding_ratio)
-    x0, y0 = pad, pad
-    x1, y1 = size - pad, size - pad
-    w, h = x1 - x0, y1 - y0
-    radius = max(8, int(w * 0.1))
-    spine = max(6, int(w * 0.18))
-    stroke = max(3, size // 42)
-
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=radius, fill="#d97706")
-    draw.rounded_rectangle([x0, y0, x0 + spine + radius, y1], radius=radius, fill="#92400e")
-    draw.rectangle([x0 + spine, y0, x0 + spine + radius, y1], fill="#d97706")
-
-    page_left = x0 + spine + int(w * 0.12)
-    page_right = x1 - int(w * 0.14)
-    for i in range(3):
-        py = y0 + int(h * (0.3 + i * 0.16))
-        draw.line([(page_left, py), (page_right, py)], fill="#fde68a", width=stroke)
-
-    return img
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "public"
+SOURCE = ROOT / "public" / "logo.png"
+BLACK = (0, 0, 0, 255)
+CLEAR = (0, 0, 0, 0)
 
 
-def save(img: Image.Image, name: str, size: int) -> None:
+def content_bbox(im: Image.Image) -> tuple[int, int, int, int]:
+    pixels = im.load()
+    w, h = im.size
+    minx, miny, maxx, maxy = w, h, 0, 0
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = pixels[x, y]
+            if a > 10 and (r + g + b) > 30:
+                minx, miny = min(minx, x), min(miny, y)
+                maxx, maxy = max(maxx, x), max(maxy, y)
+    return minx, miny, maxx + 1, maxy + 1
+
+
+def fit(src: Image.Image, size: int, padding_ratio: float = 0, bg: tuple[int, int, int, int] = CLEAR) -> Image.Image:
+    canvas = Image.new("RGBA", (size, size), bg)
+    inner = max(1, int(size * (1 - 2 * padding_ratio)))
+    scale = min(inner / src.width, inner / src.height)
+    nw = max(1, int(src.width * scale))
+    nh = max(1, int(src.height * scale))
+    resized = src.resize((nw, nh), Image.Resampling.LANCZOS)
+    canvas.paste(resized, ((size - nw) // 2, (size - nh) // 2), resized)
+    return canvas
+
+
+def save(img: Image.Image, name: str) -> None:
     path = OUT / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    img.resize((size, size), Image.Resampling.LANCZOS).save(path, "PNG")
+    img.save(path, "PNG")
 
 
 def main() -> None:
-    any_icon = book_icon(512, 0.14)
-    maskable = book_icon(512, 0.22)
-    save(any_icon, "icons/icon-512.png", 512)
-    save(any_icon, "icons/icon-192.png", 192)
-    save(maskable, "icons/icon-maskable-512.png", 512)
-    save(maskable, "icons/icon-maskable-192.png", 192)
-    save(any_icon, "apple-touch-icon.png", 180)
-    save(any_icon, "favicon.png", 32)
+    src = Image.open(SOURCE).convert("RGBA")
+    glyph = src.crop(content_bbox(src))
+    save(fit(src, 512), "icons/icon-512.png")
+    save(fit(src, 192), "icons/icon-192.png")
+    save(fit(glyph, 512, 0.22, BLACK), "icons/icon-maskable-512.png")
+    save(fit(glyph, 192, 0.22, BLACK), "icons/icon-maskable-192.png")
+    save(fit(src, 180), "apple-touch-icon.png")
+    save(fit(src, 32), "favicon.png")
 
 
 if __name__ == "__main__":

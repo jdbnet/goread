@@ -1,6 +1,11 @@
-# eBook Reader
+<div align="center">
+  <img src="web/public/logo.png" alt="eBook Reader" width="128" />
 
-A self-hosted EPUB reader: scan a folder of books, read in the browser, match metadata, and track progress. Single user, no login. Bind it to your LAN, or put a reverse proxy in front if it is on a public IP.
+  # eBook Reader
+
+  A self-hosted EPUB reader: scan a folder of books, read in the browser, match metadata, and track progress. Single user, no login. Bind it to your LAN, or put a reverse proxy in front if it is on a public IP.
+
+</div>
 
 The app never writes to your EPUB files. Covers and the SQLite database live in a separate data directory.
 
