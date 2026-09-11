@@ -32,22 +32,36 @@ let percentKnown = false;
 let locationsReady = false;
 let closed = false;
 
-function hostSize(el: HTMLElement): { width: number; height: number } {
+function measureHost(el: HTMLElement): { width: number; height: number } {
   const r = el.getBoundingClientRect();
-  const width = Math.floor(r.width) || window.innerWidth;
-  const height = Math.floor(r.height) || Math.max(400, window.innerHeight - 56);
-  return { width, height };
+  return { width: Math.floor(r.width), height: Math.floor(r.height) };
+}
+
+async function nextFrame(): Promise<void> {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function settleLayout(): Promise<void> {
+  await nextFrame();
+  await nextFrame();
 }
 
 async function waitForHost(el: HTMLElement): Promise<{ width: number; height: number }> {
-  for (let i = 0; i < 30; i++) {
-    const size = hostSize(el);
-    if (size.width >= 120 && size.height >= 120) {
+  for (let i = 0; i < 120; i++) {
+    const size = measureHost(el);
+    if (size.width >= 100 && size.height >= 100) {
       return size;
     }
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await nextFrame();
   }
-  return hostSize(el);
+  throw new Error("Reader layout did not settle.");
+}
+
+function fitRendition(el: HTMLElement) {
+  if (!rendition) return;
+  const { width, height } = measureHost(el);
+  if (width < 50 || height < 50) return;
+  rendition.resize(width, height);
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -155,6 +169,7 @@ onMounted(async () => {
     locationsReady = false;
     loading.value = true;
     await nextTick();
+    await settleLayout();
     const el = host.value;
     if (!el) {
       error.value = "Reader failed to mount.";
@@ -178,10 +193,12 @@ onMounted(async () => {
     if (closed) return;
     const initialTarget = b.current_cfi || undefined;
     await withTimeout(rendition.display(initialTarget), 12000, "Timed out rendering the first page.");
-    applyTheme();
     if (closed) return;
-    const sized = hostSize(el);
-    rendition.resize(sized.width, sized.height);
+    await settleLayout();
+    fitRendition(el);
+    applyTheme();
+    // Chrome can miss the first paint at the pre-layout size; resize then redraw.
+    await withTimeout(rendition.display(initialTarget), 12000, "Timed out rendering the first page.");
     applyTheme();
     loading.value = false;
     rendition.on("relocated", (loc) => {
@@ -199,8 +216,7 @@ onMounted(async () => {
       .catch(() => undefined);
     resizeObserver = new ResizeObserver(() => {
       if (!rendition || !host.value) return;
-      const size = hostSize(host.value);
-      rendition.resize(size.width, size.height);
+      fitRendition(host.value);
     });
     resizeObserver.observe(el);
     heartbeat = setInterval(() => {
