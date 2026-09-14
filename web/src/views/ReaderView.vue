@@ -12,9 +12,11 @@ import { ChevronLeft, Settings2, Sun, Moon, Lamp } from "@lucide/vue";
 import { api } from "../api";
 import { applyAccent } from "../accent";
 import type { Book, Settings } from "../types";
+import { useScreenWakeLock } from "../wakeLock";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
+useScreenWakeLock();
 const host = ref<HTMLElement | null>(null);
 const book = ref<Book | null>(null);
 const settings = ref<Settings>({ font_size: 18, line_height: 1.6, theme: "light", accent: "emerald" });
