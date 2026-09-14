@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from "vue-router";
-import { House, Library, Layers, ChartNoAxesColumn, Settings } from "@lucide/vue";
+import { House, Library, Layers, ChartNoAxesColumn, Settings, WifiOff } from "@lucide/vue";
+import { online } from "../offline/status";
+import { pendingCount, syncing } from "../offline/progress";
 
 const route = useRoute();
 
@@ -23,6 +25,17 @@ function active(name: string): boolean {
 <template>
   <div class="flex min-h-dvh flex-col">
     <main class="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-4 sm:px-6">
+      <p
+        v-if="!online || pendingCount > 0"
+        class="mb-3 flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-3 py-2 text-center text-xs font-medium text-white dark:bg-stone-100 dark:text-stone-900"
+      >
+        <WifiOff v-if="!online" :size="14" />
+        <template v-if="!online">Offline. Downloaded books still open.</template>
+        <template v-else-if="syncing">Syncing reading progress…</template>
+        <template v-else>
+          {{ pendingCount }} {{ pendingCount === 1 ? "book" : "books" }} waiting to sync
+        </template>
+      </p>
       <RouterView />
     </main>
     <nav

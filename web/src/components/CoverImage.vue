@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { BookOpen, Check } from "@lucide/vue";
+import { BookOpen, Check, Download } from "@lucide/vue";
 import type { Book } from "../types";
+import { downloadedIds } from "../offline/downloads";
 
 defineProps<{ book: Book; compact?: boolean }>();
 </script>
@@ -25,6 +26,14 @@ defineProps<{ book: Book; compact?: boolean }>();
     >
       <BookOpen :size="compact ? 22 : 32" />
       <span class="line-clamp-3 text-center text-xs font-medium text-stone-500">{{ book.title }}</span>
+    </div>
+    <div
+      v-if="downloadedIds.has(book.id)"
+      class="absolute left-1.5 top-1.5 flex items-center justify-center rounded-full bg-black/60 text-white shadow-sm"
+      :class="compact ? 'h-5 w-5' : 'h-7 w-7'"
+      aria-label="Downloaded"
+    >
+      <Download :size="compact ? 12 : 16" :stroke-width="2.5" />
     </div>
     <div
       v-if="book.completed_at"

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { BookOpen, RefreshCw } from "@lucide/vue";
 import { api } from "../api";
 import type { Book } from "../types";
 import ContinueCard from "../components/ContinueCard.vue";
 import BookCard from "../components/BookCard.vue";
+import { online } from "../offline/status";
+import { syncTick } from "../offline/progress";
 
 const continueBooks = ref<Book[]>([]);
 const recent = ref<Book[]>([]);
@@ -44,6 +46,9 @@ async function scan() {
 }
 
 onMounted(load);
+watch(syncTick, () => {
+  void load();
+});
 </script>
 
 <template>
@@ -56,7 +61,7 @@ onMounted(load);
       <button
         type="button"
         class="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-3 py-2 text-sm font-medium dark:border-stone-700 dark:bg-stone-900"
-        :disabled="scanning"
+        :disabled="scanning || !online"
         @click="scan"
       >
         <RefreshCw :size="16" :class="{ 'animate-spin': scanning }" />

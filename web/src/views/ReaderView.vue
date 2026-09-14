@@ -13,6 +13,9 @@ import { api } from "../api";
 import { applyAccent } from "../accent";
 import type { Book, Settings } from "../types";
 import { useScreenWakeLock } from "../wakeLock";
+import { hasBookFile } from "../offline/downloads";
+import { getPending } from "../offline/progress";
+import { online } from "../offline/status";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -103,8 +106,12 @@ function applyTheme() {
 }
 
 async function persistSettings() {
-  settings.value = await api.saveSettings(settings.value);
-  applyTheme();
+  try {
+    settings.value = await api.saveSettings(settings.value);
+    applyTheme();
+  } catch {
+    applyTheme();
+  }
 }
 
 function chromeBg(): string {
@@ -156,7 +163,7 @@ function applyPercentFromCfi(cfi: string) {
 onMounted(async () => {
   try {
     const id = Number(props.id);
-    const [b, s] = await Promise.all([api.getBook(id), api.settings()]);
+    const [b, s, pending] = await Promise.all([api.getBook(id), api.settings(), getPending(id)]);
     book.value = b;
     settings.value = { ...s, accent: s.accent || "emerald" };
     applyAccent(settings.value.accent);
@@ -165,9 +172,15 @@ onMounted(async () => {
       loading.value = false;
       return;
     }
-    lastCfi = b.current_cfi;
-    lastPercent = b.percent_completed;
-    percentKnown = b.percent_completed > 0;
+    const cachedFile = await hasBookFile(id);
+    if (!online.value && !cachedFile) {
+      error.value = "Download this book first to read offline.";
+      loading.value = false;
+      return;
+    }
+    lastCfi = pending?.current_cfi || b.current_cfi;
+    lastPercent = pending?.percent_completed ?? b.percent_completed;
+    percentKnown = lastPercent > 0;
     locationsReady = false;
     loading.value = true;
     await nextTick();
@@ -193,7 +206,7 @@ onMounted(async () => {
     });
     await withTimeout(epub.ready, 20000, "Timed out opening this EPUB.");
     if (closed) return;
-    const initialTarget = b.current_cfi || undefined;
+    const initialTarget = lastCfi || undefined;
     await withTimeout(rendition.display(initialTarget), 12000, "Timed out rendering the first page.");
     if (closed) return;
     await settleLayout();

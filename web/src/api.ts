@@ -1,48 +1,14 @@
 import type { AuthStatus, Book, BookListResponse, MetadataHit, Progress, Series, Settings, Stats } from "./types";
+import { ApiError, req } from "./http";
+import { overlayBook, overlayBooks, overlayContinue, overlayStats, recordProgressPost, rememberBook, rememberProgress, type ProgressWrite } from "./offline/progress";
 
-export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
+export { ApiError };
 
-function redirectToLogin(): void {
-  if (window.location.pathname === "/login") return;
-  const next = window.location.pathname + window.location.search;
-  window.location.assign(`/login?redirect=${encodeURIComponent(next)}`);
-}
-
-async function readError(res: Response): Promise<string> {
-  let message = res.statusText;
-  try {
-    const body = (await res.json()) as { error?: string };
-    if (body.error) message = body.error;
-  } catch {
-    /* ignore */
+function overlayBookList(res: BookListResponse): BookListResponse {
+  for (const book of res.books) {
+    rememberBook(book);
   }
-  return message;
-}
-
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    credentials: "same-origin",
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  if (res.status === 401 && path !== "/api/v1/auth/login" && path !== "/api/v1/auth/status") {
-    redirectToLogin();
-  }
-  if (!res.ok) {
-    throw new ApiError(res.status, await readError(res));
-  }
-  return (await res.json()) as T;
+  return { ...res, books: overlayBooks(res.books) };
 }
 
 export const api = {
@@ -65,16 +31,21 @@ export const api = {
   disableAuth(password: string): Promise<AuthStatus> {
     return req("/api/v1/auth/disable", { method: "POST", body: JSON.stringify({ password }) });
   },
-  listBooks(params: Record<string, string | number | undefined> = {}): Promise<BookListResponse> {
+  async listBooks(params: Record<string, string | number | undefined> = {}): Promise<BookListResponse> {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
       if (v !== undefined && v !== "") q.set(k, String(v));
     }
     const qs = q.toString();
-    return req(`/api/v1/library/books${qs ? `?${qs}` : ""}`);
+    const res = await req<BookListResponse>(`/api/v1/library/books${qs ? `?${qs}` : ""}`);
+    return overlayBookList(res);
   },
-  continueReading(): Promise<BookListResponse> {
-    return req("/api/v1/library/books?continue=1&limit=20");
+  async continueReading(): Promise<BookListResponse> {
+    const res = await req<BookListResponse>("/api/v1/library/books?continue=1&limit=20");
+    for (const book of res.books) {
+      rememberBook(book);
+    }
+    return { ...res, books: overlayContinue(res.books) };
   },
   authors(): Promise<{ authors: string[] }> {
     return req("/api/v1/library/authors");
@@ -82,30 +53,48 @@ export const api = {
   listSeries(): Promise<{ series: Series[] }> {
     return req("/api/v1/library/series");
   },
-  getSeries(id: number): Promise<Series> {
-    return req(`/api/v1/series/${id}`);
+  async getSeries(id: number): Promise<Series> {
+    const series = await req<Series>(`/api/v1/series/${id}`);
+    if (series.books) {
+      for (const book of series.books) {
+        rememberBook(book);
+      }
+      series.books = overlayBooks(series.books);
+    }
+    return series;
   },
-  getBook(id: number): Promise<Book> {
-    return req(`/api/v1/books/${id}`);
+  async getBook(id: number): Promise<Book> {
+    const book = await req<Book>(`/api/v1/books/${id}`);
+    rememberBook(book);
+    return overlayBook(book);
   },
-  applyMetadata(id: number, body: Partial<MetadataHit>): Promise<Book> {
-    return req(`/api/v1/books/${id}/metadata`, { method: "POST", body: JSON.stringify(body) });
+  async applyMetadata(id: number, body: Partial<MetadataHit>): Promise<Book> {
+    const book = await req<Book>(`/api/v1/books/${id}/metadata`, { method: "POST", body: JSON.stringify(body) });
+    rememberBook(book);
+    return overlayBook(book);
   },
   async uploadCover(id: number, file: File): Promise<Book> {
     const res = await fetch(`/api/v1/books/${id}/cover`, { method: "POST", body: formData(file), credentials: "same-origin" });
     if (res.status === 401) {
-      redirectToLogin();
+      if (window.location.pathname !== "/login") {
+        const next = window.location.pathname + window.location.search;
+        window.location.assign(`/login?redirect=${encodeURIComponent(next)}`);
+      }
     }
     if (!res.ok) {
-      throw new ApiError(res.status, await readError(res));
+      throw new ApiError(res.status, await readCoverError(res));
     }
-    return (await res.json()) as Book;
+    const book = (await res.json()) as Book;
+    rememberBook(book);
+    return overlayBook(book);
   },
-  setSeries(id: number, name: string, sequence_number: number | null): Promise<Book> {
-    return req(`/api/v1/books/${id}/series`, {
+  async setSeries(id: number, name: string, sequence_number: number | null): Promise<Book> {
+    const book = await req<Book>(`/api/v1/books/${id}/series`, {
       method: "PUT",
       body: JSON.stringify({ name, sequence_number }),
     });
+    rememberBook(book);
+    return overlayBook(book);
   },
   assignSeries(book_ids: number[], name: string): Promise<{ count: number; name: string }> {
     return req("/api/v1/library/series/assign", {
@@ -122,22 +111,17 @@ export const api = {
   searchMetadata(q: string): Promise<{ results: MetadataHit[] }> {
     return req(`/api/v1/metadata/search?q=${encodeURIComponent(q)}`);
   },
-  getProgress(id: number): Promise<Progress> {
-    return req(`/api/v1/progress/${id}`);
+  async getProgress(id: number): Promise<Progress> {
+    const p = await req<Progress>(`/api/v1/progress/${id}`);
+    rememberProgress(p);
+    return p;
   },
-  postProgress(
-    id: number,
-    body: {
-      current_cfi?: string;
-      percent_completed?: number;
-      seconds_delta?: number;
-      completed?: boolean;
-    },
-  ): Promise<Progress> {
-    return req(`/api/v1/progress/${id}`, { method: "POST", body: JSON.stringify(body) });
+  postProgress(id: number, body: ProgressWrite): Promise<Progress> {
+    return recordProgressPost(id, body);
   },
-  stats(): Promise<Stats> {
-    return req("/api/v1/stats");
+  async stats(): Promise<Stats> {
+    const s = await req<Stats>("/api/v1/stats");
+    return overlayStats(s);
   },
   settings(): Promise<Settings> {
     return req("/api/v1/settings");
@@ -146,6 +130,17 @@ export const api = {
     return req("/api/v1/settings", { method: "PUT", body: JSON.stringify(s) });
   },
 };
+
+async function readCoverError(res: Response): Promise<string> {
+  let message = res.statusText;
+  try {
+    const body = (await res.json()) as { error?: string };
+    if (body.error) message = body.error;
+  } catch {
+    /* ignore */
+  }
+  return message;
+}
 
 function formData(file: File): FormData {
   const form = new FormData();

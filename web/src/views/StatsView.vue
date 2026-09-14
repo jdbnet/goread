@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { BookCheck, Flame, Clock3 } from "@lucide/vue";
 import { api, formatDuration } from "../api";
 import type { Stats } from "../types";
+import { syncTick } from "../offline/progress";
 
 const stats = ref<Stats | null>(null);
 
-onMounted(async () => {
-  stats.value = await api.stats();
+async function load() {
+  try {
+    stats.value = await api.stats();
+  } catch {
+    /* keep last cached render */
+  }
+}
+
+onMounted(load);
+watch(syncTick, () => {
+  void load();
 });
 
 const maxDay = computed(() => {

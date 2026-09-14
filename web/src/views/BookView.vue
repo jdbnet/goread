@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, BookOpen, Search, AlertTriangle, Check, Pencil, LoaderCircle } from "@lucide/vue";
+import { ArrowLeft, BookOpen, Search, AlertTriangle, Check, Pencil, LoaderCircle, Download, Trash2 } from "@lucide/vue";
 import { api, formatPubDate, stripHtml } from "../api";
 import type { Book, MetadataHit } from "../types";
 import CoverImage from "../components/CoverImage.vue";
 import ProgressBar from "../components/ProgressBar.vue";
 import MetadataEditModal from "../components/MetadataEditModal.vue";
+import { downloadBook, downloadedIds, hasBookFile, removeDownload } from "../offline/downloads";
+import { online } from "../offline/status";
+import { syncTick } from "../offline/progress";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -17,15 +20,32 @@ const searching = ref(false);
 const applying = ref(false);
 const message = ref("");
 const editing = ref(false);
+const downloading = ref(false);
+const fileReady = ref(false);
 
 const bookId = computed(() => Number(props.id));
+const downloaded = computed(() => downloadedIds.value.has(bookId.value));
+const canReadOffline = computed(() => fileReady.value || downloaded.value);
+
+async function refreshFile(): Promise<void> {
+  fileReady.value = await hasBookFile(bookId.value);
+}
 
 async function load() {
-  book.value = await api.getBook(bookId.value);
-  query.value = [book.value.title, book.value.author, book.value.isbn].filter(Boolean).join(" ");
+  try {
+    book.value = await api.getBook(bookId.value);
+    query.value = [book.value.title, book.value.author, book.value.isbn].filter(Boolean).join(" ");
+    await refreshFile();
+  } catch (e) {
+    message.value = e instanceof Error ? e.message : "Failed to load book";
+  }
 }
 
 async function search() {
+  if (!online.value) {
+    message.value = "Matching needs an internet connection.";
+    return;
+  }
   searching.value = true;
   message.value = "";
   try {
@@ -57,6 +77,33 @@ async function toggleComplete() {
   await load();
 }
 
+async function toggleDownload() {
+  if (!book.value || downloading.value) return;
+  downloading.value = true;
+  message.value = "";
+  try {
+    if (downloaded.value) {
+      await removeDownload(book.value.id);
+    } else {
+      await downloadBook(book.value);
+    }
+    await refreshFile();
+  } catch (e) {
+    message.value = e instanceof Error ? e.message : "Download failed";
+  } finally {
+    downloading.value = false;
+  }
+}
+
+function openReader() {
+  if (!book.value || book.value.file_missing) return;
+  if (!online.value && !canReadOffline.value) {
+    message.value = "Download this book first to read offline.";
+    return;
+  }
+  router.replace(`/read/${book.value.id}`);
+}
+
 function onEdited(updated: Book) {
   book.value = updated;
   editing.value = false;
@@ -64,6 +111,9 @@ function onEdited(updated: Book) {
 }
 
 onMounted(load);
+watch(syncTick, () => {
+  void load();
+});
 </script>
 
 <template>
@@ -91,15 +141,29 @@ onMounted(load);
           <button
             v-if="!book.file_missing"
             type="button"
-            class="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
-            @click="router.replace(`/read/${book.id}`)"
+            class="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            :disabled="!online && !canReadOffline"
+            @click="openReader"
           >
             <BookOpen :size="16" />
             {{ book.completed_at || book.percent_completed <= 0 ? "Read" : "Continue" }}
           </button>
           <button
+            v-if="!book.file_missing"
             type="button"
             class="inline-flex items-center gap-2 rounded-full border border-stone-300 px-4 py-2 text-sm dark:border-stone-700"
+            :disabled="downloading || (!online && !downloaded)"
+            @click="toggleDownload"
+          >
+            <LoaderCircle v-if="downloading" :size="16" class="animate-spin" />
+            <Trash2 v-else-if="downloaded" :size="16" />
+            <Download v-else :size="16" />
+            {{ downloading ? "Saving…" : downloaded ? "Remove download" : "Download" }}
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-full border border-stone-300 px-4 py-2 text-sm dark:border-stone-700"
+            :disabled="!online"
             @click="editing = true"
           >
             <Pencil :size="16" />
@@ -133,6 +197,10 @@ onMounted(load);
       <div v-if="book.language"><dt class="text-xs text-stone-500">Language</dt><dd>{{ book.language }}</dd></div>
     </dl>
 
+    <p v-if="!online && !book.file_missing && !canReadOffline" class="mt-4 text-sm text-stone-500">
+      Download this book first to read offline.
+    </p>
+
     <section class="mt-8">
       <h2 class="mb-3 text-lg font-semibold">Search & match</h2>
       <div class="flex gap-2">
@@ -140,7 +208,7 @@ onMounted(load);
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm disabled:opacity-50"
-          :disabled="searching"
+          :disabled="searching || !online"
           @click="search"
         >
           <LoaderCircle v-if="searching" :size="16" class="animate-spin" />
@@ -162,7 +230,7 @@ onMounted(load);
             <button
               type="button"
               class="mt-2 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
-              :disabled="applying"
+              :disabled="applying || !online"
               @click="apply(hit)"
             >
               Apply
@@ -179,4 +247,5 @@ onMounted(load);
       @saved="onEdited"
     />
   </div>
+  <p v-else-if="message" class="text-sm text-stone-500">{{ message }}</p>
 </template>

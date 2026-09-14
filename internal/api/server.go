@@ -478,10 +478,11 @@ func (s *Server) postProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		CurrentCFI       string   `json:"current_cfi"`
-		PercentCompleted *float64 `json:"percent_completed"`
-		SecondsDelta     int64    `json:"seconds_delta"`
-		Completed        *bool    `json:"completed"`
+		CurrentCFI         string   `json:"current_cfi"`
+		PercentCompleted   *float64 `json:"percent_completed"`
+		SecondsDelta       int64    `json:"seconds_delta"`
+		Completed          *bool    `json:"completed"`
+		BaselineLastReadAt *string  `json:"baseline_last_read_at"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
@@ -491,7 +492,26 @@ func (s *Server) postProgress(w http.ResponseWriter, r *http.Request) {
 	if body.PercentCompleted != nil {
 		percent = *body.PercentCompleted
 	}
-	p, err := s.DB.UpsertProgress(id, body.CurrentCFI, percent, body.SecondsDelta, body.Completed, s.Location)
+	var baseline *time.Time
+	if body.BaselineLastReadAt != nil && *body.BaselineLastReadAt != "" {
+		t, err := time.Parse(time.RFC3339, *body.BaselineLastReadAt)
+		if err != nil {
+			t, err = time.Parse(time.RFC3339Nano, *body.BaselineLastReadAt)
+		}
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		utc := t.UTC()
+		baseline = &utc
+	}
+	p, err := s.DB.UpsertProgress(id, appdb.ProgressPatch{
+		CFI:                body.CurrentCFI,
+		Percent:            percent,
+		SecondsDelta:       body.SecondsDelta,
+		Completed:          body.Completed,
+		BaselineLastReadAt: baseline,
+	}, s.Location)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return

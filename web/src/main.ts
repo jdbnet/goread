@@ -1,10 +1,14 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 import { router } from "./router";
+import { prefetchCore, registerServiceWorker, startOffline } from "./offline/status";
 import "./style.css";
 
-createApp(App).use(router).mount("#app");
-
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  void navigator.serviceWorker.register("/serviceworker.js");
+async function boot(): Promise<void> {
+  await startOffline();
+  await registerServiceWorker();
+  createApp(App).use(router).mount("#app");
+  void prefetchCore();
 }
+
+void boot();

@@ -6,6 +6,7 @@ import { api } from "../api";
 import { ACCENTS, applyAccent } from "../accent";
 import { getAuthStatus, setAuthCache } from "../auth";
 import type { AccentId, AuthStatus, Settings } from "../types";
+import { online } from "../offline/status";
 
 const router = useRouter();
 const settings = ref<Settings | null>(null);
@@ -38,7 +39,7 @@ onMounted(async () => {
 });
 
 async function choose(id: AccentId) {
-  if (!settings.value || saving.value || settings.value.accent === id) return;
+  if (!settings.value || saving.value || settings.value.accent === id || !online.value) return;
   saving.value = true;
   error.value = "";
   applyAccent(id);
@@ -182,7 +183,7 @@ async function logout() {
           v-if="auth?.enabled && auth.authenticated"
           type="button"
           class="shrink-0 rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium dark:border-stone-700 dark:bg-stone-900"
-          :disabled="loggingOut"
+          :disabled="loggingOut || !online"
           @click="logout"
         >
           {{ loggingOut ? "Signing out..." : "Sign out" }}
@@ -249,7 +250,7 @@ async function logout() {
           <button
             type="submit"
             class="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-            :disabled="authSaving"
+            :disabled="authSaving || !online"
           >
             {{ auth?.enabled ? "Update login" : "Turn on login" }}
           </button>
@@ -257,7 +258,7 @@ async function logout() {
             v-if="auth?.enabled"
             type="button"
             class="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium dark:border-stone-700"
-            :disabled="authSaving"
+            :disabled="authSaving || !online"
             @click="disableLogin"
           >
             Turn off login

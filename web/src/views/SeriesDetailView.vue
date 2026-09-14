@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowLeft } from "@lucide/vue";
 import { api } from "../api";
 import type { Series } from "../types";
 import BookCard from "../components/BookCard.vue";
+import { syncTick } from "../offline/progress";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
 const series = ref<Series | null>(null);
 
 onMounted(async () => {
+  series.value = await api.getSeries(Number(props.id));
+});
+watch(syncTick, async () => {
   series.value = await api.getSeries(Number(props.id));
 });
 </script>

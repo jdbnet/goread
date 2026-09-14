@@ -5,6 +5,9 @@ import { api } from "../api";
 import type { Book } from "../types";
 import BookCard from "../components/BookCard.vue";
 import AddToSeriesModal from "../components/AddToSeriesModal.vue";
+import { listDownloads } from "../offline/downloads";
+import { online } from "../offline/status";
+import { overlayBook, syncTick } from "../offline/progress";
 
 const books = ref<Book[]>([]);
 const total = ref(0);
@@ -22,8 +25,50 @@ const showSeriesModal = ref(false);
 const notice = ref("");
 
 const selectedCount = computed(() => selected.value.length);
+const pageSize = 24;
+
+function sortBooks(list: Book[]): Book[] {
+  const copy = [...list];
+  if (sort.value === "title") {
+    copy.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (sort.value === "author") {
+    copy.sort((a, b) => a.author.localeCompare(b.author) || a.title.localeCompare(b.title));
+  } else if (sort.value === "recent") {
+    copy.sort((a, b) => Date.parse(b.last_read_at || "0") - Date.parse(a.last_read_at || "0"));
+  } else {
+    copy.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  }
+  return copy;
+}
+
+async function loadDownloaded() {
+  loading.value = true;
+  try {
+    const rows = await listDownloads();
+    const needle = q.value.trim().toLowerCase();
+    let list = rows.map((row) => overlayBook(row.snapshot));
+    if (needle) {
+      list = list.filter(
+        (b) => b.title.toLowerCase().includes(needle) || b.author.toLowerCase().includes(needle),
+      );
+    }
+    if (author.value) {
+      list = list.filter((b) => b.author === author.value);
+    }
+    list = sortBooks(list);
+    total.value = list.length;
+    const start = (page.value - 1) * pageSize;
+    books.value = list.slice(start, start + pageSize);
+  } finally {
+    loading.value = false;
+  }
+}
 
 async function load() {
+  if (status.value === "downloaded") {
+    await loadDownloaded();
+    return;
+  }
   loading.value = true;
   try {
     const res = await api.listBooks({
@@ -32,22 +77,33 @@ async function load() {
       status: status.value,
       sort: sort.value,
       page: page.value,
-      limit: 24,
+      limit: pageSize,
     });
     books.value = res.books;
     total.value = res.total;
+  } catch {
+    if (!books.value.length) {
+      notice.value = "Library is unavailable offline until it has been opened online.";
+    }
   } finally {
     loading.value = false;
   }
 }
 
 onMounted(async () => {
-  authors.value = (await api.authors()).authors;
+  try {
+    authors.value = (await api.authors()).authors;
+  } catch {
+    authors.value = [];
+  }
   await load();
 });
 
 watch([sort, status, author], () => {
   page.value = 1;
+  void load();
+});
+watch(syncTick, () => {
   void load();
 });
 
@@ -113,7 +169,8 @@ function onAssigned(name: string) {
     <div v-if="selecting && selectedCount > 0" class="mb-4 flex gap-2">
       <button
         type="button"
-        class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white"
+        class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+        :disabled="!online"
         @click="showSeriesModal = true"
       >
         <Layers :size="16" />
@@ -152,6 +209,7 @@ function onAssigned(name: string) {
         <option value="unread">Unread</option>
         <option value="reading">Reading</option>
         <option value="completed">Completed</option>
+        <option value="downloaded">Downloaded</option>
       </select>
       <select v-model="author" class="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900">
         <option value="">Any author</option>
@@ -171,7 +229,7 @@ function onAssigned(name: string) {
       />
     </div>
 
-    <div v-if="total > 24" class="mt-6 flex justify-center gap-3">
+    <div v-if="total > pageSize" class="mt-6 flex justify-center gap-3">
       <button
         type="button"
         class="rounded-full border px-4 py-1.5 text-sm disabled:opacity-40"
@@ -184,7 +242,7 @@ function onAssigned(name: string) {
       <button
         type="button"
         class="rounded-full border px-4 py-1.5 text-sm disabled:opacity-40"
-        :disabled="page * 24 >= total"
+        :disabled="page * pageSize >= total"
         @click="page++; load()"
       >
         Next

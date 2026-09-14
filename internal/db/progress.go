@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+type ProgressPatch struct {
+	CFI                string
+	Percent            float64
+	SecondsDelta       int64
+	Completed          *bool
+	BaselineLastReadAt *time.Time
+}
+
 func (d *DB) GetProgress(bookID int64) (Progress, error) {
 	row := d.SQL.QueryRow(`
 SELECT book_id, current_cfi, percent_completed, total_time_read_seconds, last_read_at, completed_at
@@ -23,37 +31,49 @@ FROM reading_progress WHERE book_id = ?`, bookID)
 	return p, nil
 }
 
-func (d *DB) UpsertProgress(bookID int64, cfi string, percent float64, secondsDelta int64, completed *bool, loc *time.Location) (Progress, error) {
+func (d *DB) UpsertProgress(bookID int64, patch ProgressPatch, loc *time.Location) (Progress, error) {
 	now := time.Now().UTC()
 	p, err := d.GetProgress(bookID)
 	if err != nil {
 		return Progress{}, err
 	}
 	p.BookID = bookID
-	if cfi != "" {
-		p.CurrentCFI = cfi
-	}
-	if percent >= 0 {
-		p.PercentCompleted = percent
-	}
-	if secondsDelta > 0 {
-		p.TotalTimeReadSecs += secondsDelta
-	}
-	p.LastReadAt = &now
-	if completed != nil {
-		if *completed {
-			if p.CompletedAt == nil {
-				p.CompletedAt = &now
-			}
-			if p.PercentCompleted < 100 {
-				p.PercentCompleted = 100
-			}
-		} else {
-			p.CompletedAt = nil
+
+	stale := patch.BaselineLastReadAt != nil && p.LastReadAt != nil && p.LastReadAt.After(*patch.BaselineLastReadAt)
+	positionTouched := false
+	if !stale {
+		if patch.CFI != "" {
+			p.CurrentCFI = patch.CFI
+			positionTouched = true
 		}
-	} else if p.PercentCompleted >= 98 && p.CompletedAt == nil {
-		p.CompletedAt = &now
+		if patch.Percent >= 0 {
+			p.PercentCompleted = patch.Percent
+			positionTouched = true
+		}
+		if patch.Completed != nil {
+			if *patch.Completed {
+				if p.CompletedAt == nil {
+					p.CompletedAt = &now
+				}
+				if p.PercentCompleted < 100 {
+					p.PercentCompleted = 100
+				}
+			} else {
+				p.CompletedAt = nil
+			}
+			positionTouched = true
+		} else if positionTouched && p.PercentCompleted >= 98 && p.CompletedAt == nil {
+			p.CompletedAt = &now
+		}
+		if positionTouched {
+			p.LastReadAt = &now
+		}
 	}
+
+	if patch.SecondsDelta > 0 {
+		p.TotalTimeReadSecs += patch.SecondsDelta
+	}
+
 	var lastStr, completedStr any
 	if p.LastReadAt != nil {
 		lastStr = formatTime(*p.LastReadAt)
@@ -74,12 +94,12 @@ ON CONFLICT(book_id) DO UPDATE SET
 	if err != nil {
 		return Progress{}, err
 	}
-	if secondsDelta > 0 {
+	if patch.SecondsDelta > 0 {
 		if loc == nil {
 			loc = time.UTC
 		}
 		day := now.In(loc).Format("2006-01-02")
-		if err := d.AddDailySeconds(day, secondsDelta); err != nil {
+		if err := d.AddDailySeconds(day, patch.SecondsDelta); err != nil {
 			return Progress{}, err
 		}
 	}
