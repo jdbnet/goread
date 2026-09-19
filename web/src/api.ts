@@ -1,4 +1,15 @@
-import type { AuthStatus, Book, BookListResponse, MetadataHit, Progress, Series, Settings, Stats } from "./types";
+import type {
+  AuthStatus,
+  BackupResponse,
+  BackupSettings,
+  Book,
+  BookListResponse,
+  MetadataHit,
+  Progress,
+  Series,
+  Settings,
+  Stats,
+} from "./types";
 import { ApiError, req } from "./http";
 import { overlayBook, overlayBooks, overlayContinue, overlayStats, recordProgressPost, rememberBook, rememberProgress, type ProgressWrite } from "./offline/progress";
 
@@ -129,7 +140,65 @@ export const api = {
   saveSettings(s: Settings): Promise<Settings> {
     return req("/api/v1/settings", { method: "PUT", body: JSON.stringify(s) });
   },
+  getBackup(): Promise<BackupResponse> {
+    return req("/api/v1/backup");
+  },
+  saveBackupSettings(settings: BackupSettings): Promise<BackupResponse> {
+    return req("/api/v1/backup", { method: "PUT", body: JSON.stringify(settings) });
+  },
+  createBackup(): Promise<BackupResponse> {
+    return req("/api/v1/backup", { method: "POST" });
+  },
+  async downloadBackup(filename: string): Promise<void> {
+    const res = await fetch(`/api/v1/backup/${encodeURIComponent(filename)}`, { credentials: "same-origin" });
+    if (res.status === 401) {
+      if (window.location.pathname !== "/login") {
+        const next = window.location.pathname + window.location.search;
+        window.location.assign(`/login?redirect=${encodeURIComponent(next)}`);
+      }
+      return;
+    }
+    if (!res.ok) {
+      throw new ApiError(res.status, await readBackupError(res));
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  deleteBackup(filename: string): Promise<BackupResponse> {
+    return req(`/api/v1/backup/${encodeURIComponent(filename)}`, { method: "DELETE" });
+  },
+  async restoreBackup(file: File): Promise<void> {
+    const form = new FormData();
+    form.append("backup", file);
+    const res = await fetch("/api/v1/restore", { method: "POST", body: form, credentials: "same-origin" });
+    if (res.status === 401) {
+      if (window.location.pathname !== "/login") {
+        const next = window.location.pathname + window.location.search;
+        window.location.assign(`/login?redirect=${encodeURIComponent(next)}`);
+      }
+      return;
+    }
+    if (!res.ok) {
+      throw new ApiError(res.status, await readBackupError(res));
+    }
+  },
 };
+
+async function readBackupError(res: Response): Promise<string> {
+  let message = res.statusText;
+  try {
+    const body = (await res.json()) as { error?: string };
+    if (body.error) message = body.error;
+  } catch {
+    /* ignore */
+  }
+  return message;
+}
 
 async function readCoverError(res: Response): Promise<string> {
   let message = res.statusText;

@@ -5,7 +5,7 @@ import { Check } from "@lucide/vue";
 import { api } from "../api";
 import { ACCENTS, applyAccent } from "../accent";
 import { getAuthStatus, setAuthCache } from "../auth";
-import type { AccentId, AuthStatus, Settings } from "../types";
+import type { AccentId, AuthStatus, BackupFile, BackupSettings, Settings } from "../types";
 import { online } from "../offline/status";
 
 const router = useRouter();
@@ -23,20 +23,154 @@ const authError = ref("");
 const authMessage = ref("");
 const loggingOut = ref(false);
 
+const backupSettings = ref<BackupSettings | null>(null);
+const backups = ref<BackupFile[]>([]);
+const backupSaving = ref(false);
+const backupRunning = ref(false);
+const backupError = ref("");
+const backupMessage = ref("");
+const restoreInput = ref<HTMLInputElement | null>(null);
+const restoring = ref(false);
+const restoreMessage = ref("");
+
 const fieldClass =
   "mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-900";
 
 onMounted(async () => {
   try {
-    const [s, a] = await Promise.all([api.settings(), getAuthStatus(true)]);
+    const [s, a, b] = await Promise.all([api.settings(), getAuthStatus(true), api.getBackup()]);
     settings.value = s;
     auth.value = a;
     username.value = a.username;
     applyAccent(s.accent);
+    backupSettings.value = b.settings;
+    backups.value = b.backups;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load settings";
   }
 });
+
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatBackupTime(value: string | null): string {
+  if (!value) return "Never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function hourLabel(hour: number): string {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+async function saveBackupSettings() {
+  if (!backupSettings.value || backupSaving.value) return;
+  backupSaving.value = true;
+  backupError.value = "";
+  backupMessage.value = "";
+  try {
+    const res = await api.saveBackupSettings(backupSettings.value);
+    backupSettings.value = res.settings;
+    backups.value = res.backups;
+    backupMessage.value = "Backup settings saved";
+  } catch (e) {
+    backupError.value = e instanceof Error ? e.message : "Failed to save backup settings";
+  } finally {
+    backupSaving.value = false;
+  }
+}
+
+async function runBackupNow() {
+  if (backupRunning.value) return;
+  backupRunning.value = true;
+  backupError.value = "";
+  backupMessage.value = "";
+  try {
+    const res = await api.createBackup();
+    backupSettings.value = res.settings;
+    backups.value = res.backups;
+    backupMessage.value = "Backup created";
+  } catch (e) {
+    backupError.value = e instanceof Error ? e.message : "Failed to create backup";
+  } finally {
+    backupRunning.value = false;
+  }
+}
+
+async function downloadBackupFile(filename: string) {
+  backupError.value = "";
+  try {
+    await api.downloadBackup(filename);
+  } catch (e) {
+    backupError.value = e instanceof Error ? e.message : "Failed to download backup";
+  }
+}
+
+async function removeBackupFile(filename: string) {
+  if (!window.confirm(`Delete backup ${filename}?`)) return;
+  backupError.value = "";
+  backupMessage.value = "";
+  try {
+    const res = await api.deleteBackup(filename);
+    backupSettings.value = res.settings;
+    backups.value = res.backups;
+    backupMessage.value = "Backup deleted";
+  } catch (e) {
+    backupError.value = e instanceof Error ? e.message : "Failed to delete backup";
+  }
+}
+
+function pickRestoreFile() {
+  restoreInput.value?.click();
+}
+
+async function onRestoreSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".zip")) {
+    backupError.value = "Please choose a .zip backup file";
+    return;
+  }
+  if (
+    !window.confirm(
+      "Restore this backup? All current reading progress, settings, and covers will be replaced. The server will restart.",
+    )
+  ) {
+    return;
+  }
+  restoring.value = true;
+  backupError.value = "";
+  restoreMessage.value = "";
+  try {
+    await api.restoreBackup(file);
+    restoreMessage.value = "Restore complete. The server is restarting; this page will reload shortly.";
+    await waitForServer();
+    window.location.reload();
+  } catch (e) {
+    backupError.value = e instanceof Error ? e.message : "Failed to restore backup";
+    restoring.value = false;
+  }
+}
+
+async function waitForServer() {
+  for (let i = 0; i < 60; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const res = await fetch("/healthz");
+      if (res.ok) return;
+    } catch {
+      /* server still restarting */
+    }
+  }
+}
 
 async function choose(id: AccentId) {
   if (!settings.value || saving.value || settings.value.accent === id || !online.value) return;
@@ -264,6 +398,159 @@ async function logout() {
             Turn off login
           </button>
         </div>
+      </form>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-lg font-semibold">Backup &amp; restore</h2>
+      <p class="mt-1 text-sm text-stone-500">
+        Back up reading progress, settings, and covers. EPUB files in your library are not included.
+      </p>
+
+      <form v-if="backupSettings" class="mt-4 max-w-2xl space-y-4" @submit.prevent="saveBackupSettings">
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="backupSettings.enabled" type="checkbox" class="rounded border-stone-300" :disabled="!online" />
+          Enable automatic backups
+        </label>
+
+        <div v-if="backupSettings.enabled" class="space-y-3 rounded-xl border border-stone-200 p-4 dark:border-stone-800">
+          <div>
+            <p class="text-xs font-medium text-stone-500">Schedule</p>
+            <div class="mt-2 flex flex-wrap gap-4 text-sm">
+              <label class="flex items-center gap-2">
+                <input
+                  v-model="backupSettings.schedule_mode"
+                  type="radio"
+                  value="interval"
+                  name="backup-schedule"
+                  :disabled="!online"
+                />
+                Every N hours
+              </label>
+              <label class="flex items-center gap-2">
+                <input
+                  v-model="backupSettings.schedule_mode"
+                  type="radio"
+                  value="daily"
+                  name="backup-schedule"
+                  :disabled="!online"
+                />
+                Daily at a set hour
+              </label>
+            </div>
+          </div>
+
+          <div v-if="backupSettings.schedule_mode === 'interval'">
+            <label class="text-xs font-medium text-stone-500" for="backup-interval">Interval (hours)</label>
+            <input
+              id="backup-interval"
+              v-model.number="backupSettings.interval_hours"
+              :class="fieldClass"
+              type="number"
+              min="1"
+              max="720"
+              :disabled="!online"
+            />
+          </div>
+
+          <div v-else>
+            <label class="text-xs font-medium text-stone-500" for="backup-hour">Time of day (server timezone)</label>
+            <select id="backup-hour" v-model.number="backupSettings.daily_hour" :class="fieldClass" :disabled="!online">
+              <option v-for="h in 24" :key="h - 1" :value="h - 1">{{ hourLabel(h - 1) }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-stone-500" for="backup-retention">Keep last N backups</label>
+            <input
+              id="backup-retention"
+              v-model.number="backupSettings.retention_count"
+              :class="fieldClass"
+              type="number"
+              min="1"
+              max="100"
+              :disabled="!online"
+            />
+          </div>
+        </div>
+
+        <p class="text-sm text-stone-500">Last backup: {{ formatBackupTime(backupSettings.last_run_at) }}</p>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            class="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            :disabled="backupSaving || !online"
+          >
+            {{ backupSaving ? "Saving..." : "Save backup settings" }}
+          </button>
+          <button
+            type="button"
+            class="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium dark:border-stone-700"
+            :disabled="backupRunning || !online"
+            @click="runBackupNow"
+          >
+            {{ backupRunning ? "Backing up..." : "Backup now" }}
+          </button>
+          <button
+            type="button"
+            class="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium dark:border-stone-700"
+            :disabled="restoring || !online"
+            @click="pickRestoreFile"
+          >
+            {{ restoring ? "Restoring..." : "Restore from file" }}
+          </button>
+          <input ref="restoreInput" type="file" accept=".zip,application/zip" class="hidden" @change="onRestoreSelected" />
+        </div>
+
+        <p v-if="backupError" class="text-sm text-red-600">{{ backupError }}</p>
+        <p v-else-if="restoreMessage" class="text-sm text-emerald-700 dark:text-emerald-400">{{ restoreMessage }}</p>
+        <p v-else-if="backupMessage" class="text-sm text-emerald-700 dark:text-emerald-400">{{ backupMessage }}</p>
+
+        <div v-if="backups.length" class="overflow-hidden rounded-xl border border-stone-200 dark:border-stone-800">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-stone-100 text-xs uppercase tracking-wide text-stone-500 dark:bg-stone-900">
+              <tr>
+                <th class="px-3 py-2 font-medium">File</th>
+                <th class="px-3 py-2 font-medium">Size</th>
+                <th class="px-3 py-2 font-medium">Created</th>
+                <th class="px-3 py-2 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="file in backups"
+                :key="file.filename"
+                class="border-t border-stone-200 dark:border-stone-800"
+              >
+                <td class="px-3 py-2 font-mono text-xs">{{ file.filename }}</td>
+                <td class="px-3 py-2">{{ formatBytes(file.size) }}</td>
+                <td class="px-3 py-2">{{ formatBackupTime(file.created_at) }}</td>
+                <td class="px-3 py-2">
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      class="text-accent hover:underline"
+                      :disabled="!online"
+                      @click="downloadBackupFile(file.filename)"
+                    >
+                      Download
+                    </button>
+                    <button
+                      type="button"
+                      class="text-red-600 hover:underline"
+                      :disabled="!online"
+                      @click="removeBackupFile(file.filename)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="text-sm text-stone-500">No backups stored on the server yet.</p>
       </form>
     </section>
   </div>

@@ -96,3 +96,23 @@ export type BookListResponse = {
   page?: number;
   limit?: number;
 };
+
+export type BackupSettings = {
+  enabled: boolean;
+  schedule_mode: "interval" | "daily";
+  interval_hours: number;
+  daily_hour: number;
+  retention_count: number;
+  last_run_at: string | null;
+};
+
+export type BackupFile = {
+  filename: string;
+  size: number;
+  created_at: string;
+};
+
+export type BackupResponse = {
+  settings: BackupSettings;
+  backups: BackupFile[];
+};

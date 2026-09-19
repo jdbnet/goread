@@ -25,6 +25,7 @@ type Server struct {
 	Cfg      config.Config
 	Location *time.Location
 	DataDir  string
+	Shutdown func()
 }
 
 func New(db *appdb.DB, sc *scanner.Scanner, meta *metadata.Client, cfg config.Config, loc *time.Location) *Server {
@@ -58,6 +59,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/stats", s.getStats)
 	mux.HandleFunc("GET /api/v1/settings", s.getSettings)
 	mux.HandleFunc("PUT /api/v1/settings", s.putSettings)
+	mux.HandleFunc("GET /api/v1/backup", s.getBackup)
+	mux.HandleFunc("PUT /api/v1/backup", s.putBackupSettings)
+	mux.HandleFunc("POST /api/v1/backup", s.postBackup)
+	mux.HandleFunc("GET /api/v1/backup/{filename}", s.getBackupFile)
+	mux.HandleFunc("DELETE /api/v1/backup/{filename}", s.deleteBackupFile)
+	mux.HandleFunc("POST /api/v1/restore", s.postRestore)
 	mux.Handle("/", ui.Handler())
 	return logging(s.requireAuth(mux))
 }

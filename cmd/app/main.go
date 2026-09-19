@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"goread/internal/api"
+	"goread/internal/backup"
 	"goread/internal/config"
 	appdb "goread/internal/db"
 	"goread/internal/metadata"
@@ -73,6 +74,13 @@ func main() {
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	srv.Shutdown = func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = httpSrv.Shutdown(ctx)
+	}
+
+	go runBackupScheduler(database, cfg.DataDir, loc)
 
 	go func() {
 		log.Printf("goread %s listening on %s (library=%s data=%s tz=%s)", version.Version, cfg.Listen, cfg.LibraryPath, cfg.DataDir, cfg.Timezone)
@@ -88,6 +96,37 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(ctx)
+}
+
+func runBackupScheduler(database *appdb.DB, dataDir string, loc *time.Location) {
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	for now := range t.C {
+		ok, err := database.ShouldRunBackup(now, loc)
+		if err != nil {
+			log.Printf("backup schedule check: %v", err)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		settings, err := database.GetBackupSettings()
+		if err != nil {
+			log.Printf("backup settings: %v", err)
+			continue
+		}
+		if _, err := backup.Create(dataDir, database.SQL); err != nil {
+			log.Printf("scheduled backup: %v", err)
+			continue
+		}
+		if err := backup.Prune(dataDir, settings.RetentionCount); err != nil {
+			log.Printf("backup prune: %v", err)
+			continue
+		}
+		if err := database.TouchBackupLastRun(now); err != nil {
+			log.Printf("backup last run: %v", err)
+		}
+	}
 }
 
 func wantsVersion(args []string) bool {
