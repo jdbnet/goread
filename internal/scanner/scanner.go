@@ -99,33 +99,30 @@ func (s *Scanner) ingest(path string, res *Result, seen map[string]struct{}) err
 		return err
 	}
 	seen[hash] = struct{}{}
-	meta, err := ParseEPUB(path)
-	if err != nil {
-		return err
-	}
 	existing, err := s.DB.GetBookByHash(hash)
 	if err == nil {
-		applyScanMeta(&existing, meta, path)
-		existing.FileMissing = false
-		if err := s.DB.UpdateBook(existing); err != nil {
-			return err
+		changed := false
+		if existing.FilePath != path {
+			existing.FilePath = path
+			changed = true
 		}
-		if !existing.UserSet("series") {
-			if err := s.applySeries(existing.ID, meta, false); err != nil {
+		if existing.FileMissing {
+			existing.FileMissing = false
+			changed = true
+		}
+		if changed {
+			if err := s.DB.UpdateBook(existing); err != nil {
 				return err
 			}
+			res.Updated++
 		}
-		if !existing.UserSet("cover") {
-			if err := s.writeCover(existing.ID, &existing, meta); err != nil {
-				log.Printf("cover %s: %v", path, err)
-			} else if err := s.DB.UpdateBook(existing); err != nil {
-				return err
-			}
-		}
-		res.Updated++
 		return nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	meta, err := ParseEPUB(path)
+	if err != nil {
 		return err
 	}
 	title := meta.Title

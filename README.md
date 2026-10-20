@@ -33,7 +33,7 @@ services:
       LIBRARY_PATH: /library
       DATA_DIR: /data
       TZ: Europe/London
-      SCAN_INTERVAL: 5m
+      SCAN_INTERVAL: 30m
     volumes:
       # Your existing EPUB folder. Read-only: the app never rewrites books.
       - /path/to/ebooks:/library:ro
@@ -82,7 +82,7 @@ Flags and environment variables are equivalent. Library path is required.
 | `--data` | `DATA_DIR` | `./data` | SQLite DB and covers |
 | `--listen` | `LISTEN` | `:8080` | HTTP bind address |
 | `--tz` | `TZ` | `UTC` | Timezone for daily stats and streaks |
-| `--scan-interval` | `SCAN_INTERVAL` | `5m` | Rescan interval; `0` disables |
+| `--scan-interval` | `SCAN_INTERVAL` | `30m` | Rescan interval; `0` disables |
 | `--fsnotify` | `FSNOTIFY` | `true` | Watch the library for file changes |
 
 ```bash

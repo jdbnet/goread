@@ -221,14 +221,23 @@ onMounted(async () => {
       lastCfi = cfi;
       applyPercentFromCfi(cfi);
     });
-    void epub.locations.generate(1600)
-      .then(() => {
-        if (closed) return;
-        locationsReady = true;
-        applyPercentFromCfi(lastCfi);
-        void sendProgress(0);
-      })
-      .catch(() => undefined);
+    const buildLocations = () => {
+      if (!epub || closed) return;
+      void epub.locations
+        .generate(768)
+        .then(() => {
+          if (closed) return;
+          locationsReady = true;
+          applyPercentFromCfi(lastCfi);
+          void sendProgress(0);
+        })
+        .catch(() => undefined);
+    };
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(() => buildLocations(), { timeout: 8000 });
+    } else {
+      setTimeout(buildLocations, 250);
+    }
     resizeObserver = new ResizeObserver(() => {
       if (!rendition || !host.value) return;
       fitRendition(host.value);

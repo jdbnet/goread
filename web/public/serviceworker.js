@@ -1,6 +1,7 @@
 const SHELL_CACHE = "goread-shell-v1";
-const API_CACHE = "goread-api-v1";
+const API_CACHE = "goread-api-v2";
 const BOOKS_CACHE = "goread-books";
+const API_CACHE_MAX_ENTRIES = 48;
 
 const PRECACHE_URLS = [
   "/",
@@ -46,6 +47,9 @@ self.addEventListener("activate", (event) => {
             key === SHELL_CACHE || key === API_CACHE || key === BOOKS_CACHE;
           if (keep) return Promise.resolve();
           if (key.startsWith("goread-shell-") || key.startsWith("goread-api-")) {
+            return caches.delete(key);
+          }
+          if (key === "goread-api-v1") {
             return caches.delete(key);
           }
           if (key === BOOKS_CACHE || key.startsWith("goread-books")) {
@@ -148,10 +152,14 @@ async function bookFileResponse(request, url) {
     credentials: request.credentials,
     cache: "no-store",
   });
-  if (res.ok) {
-    await books.put(key, res.clone());
-  }
   return res;
+}
+
+async function trimCache(cache, maxEntries) {
+  const keys = await cache.keys();
+  if (keys.length <= maxEntries) return;
+  const excess = keys.length - maxEntries;
+  await Promise.all(keys.slice(0, excess).map((key) => cache.delete(key)));
 }
 
 async function networkFirst(request, cacheName) {
@@ -160,6 +168,9 @@ async function networkFirst(request, cacheName) {
     if (res.ok) {
       const cache = await caches.open(cacheName);
       await cache.put(request, res.clone());
+      if (cacheName === API_CACHE) {
+        await trimCache(cache, API_CACHE_MAX_ENTRIES);
+      }
     }
     return res;
   } catch (err) {

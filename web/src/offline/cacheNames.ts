@@ -1,5 +1,5 @@
 export const SHELL_CACHE = "goread-shell-v1";
-export const API_CACHE = "goread-api-v1";
+export const API_CACHE = "goread-api-v2";
 export const BOOKS_CACHE = "goread-books";
 
 export function bookFileUrl(bookId: number): string {

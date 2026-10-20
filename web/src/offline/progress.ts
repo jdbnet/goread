@@ -26,7 +26,14 @@ function bumpSync(): void {
 
 function withBookLock<T>(bookId: number, fn: () => Promise<T>): Promise<T> {
   const prev = bookLocks.get(bookId) ?? Promise.resolve();
-  const next = prev.catch(() => undefined).then(fn);
+  const next = prev
+    .catch(() => undefined)
+    .then(fn)
+    .finally(() => {
+      if (bookLocks.get(bookId) === next) {
+        bookLocks.delete(bookId);
+      }
+    });
   bookLocks.set(bookId, next);
   return next;
 }

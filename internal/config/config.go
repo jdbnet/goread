@@ -27,7 +27,7 @@ func Load(args []string) (Config, error) {
 		EnableFSNotify: envBool("FSNOTIFY", true),
 	}
 
-	intervalRaw := envOr("SCAN_INTERVAL", "5m")
+	intervalRaw := envOr("SCAN_INTERVAL", "30m")
 	interval, err := parseInterval(intervalRaw)
 	if err != nil {
 		return Config{}, fmt.Errorf("SCAN_INTERVAL: %w", err)
