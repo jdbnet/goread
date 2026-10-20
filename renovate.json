@@ -5,7 +5,9 @@
   ],
   "packageRules": [
     {
-      "description": "vue-tsc still needs the TypeScript 6 compiler API (./lib/tsc)",
+      "description": "vue-tsc still needs the TypeScript 6 compiler API (./lib/tsc); block TS 7 until vue-tsc supports it",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["web/package.json"],
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<7"
     }
