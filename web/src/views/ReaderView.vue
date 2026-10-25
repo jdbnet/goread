@@ -36,6 +36,9 @@ let lastPercent = 0;
 let percentKnown = false;
 let locationsReady = false;
 let closed = false;
+let navLocked = false;
+let lastNavAt = 0;
+const NAV_COOLDOWN_MS = 450;
 
 function measureHost(el: HTMLElement): { width: number; height: number } {
   const r = el.getBoundingClientRect();
@@ -263,9 +266,30 @@ onBeforeUnmount(() => {
 });
 
 async function go(dir: "prev" | "next") {
-  if (!rendition) return;
-  if (dir === "next") await rendition.next();
-  else await rendition.prev();
+  if (!rendition || navLocked) return;
+  const now = Date.now();
+  if (now - lastNavAt < NAV_COOLDOWN_MS) return;
+  lastNavAt = now;
+  navLocked = true;
+  try {
+    if (dir === "next") await rendition.next();
+    else await rendition.prev();
+  } finally {
+    navLocked = false;
+  }
+}
+
+function tapPage(dir: "prev" | "next", e: PointerEvent) {
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  void go(dir);
+}
+
+function keyPage(dir: "prev" | "next", e: KeyboardEvent) {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  void go(dir);
 }
 
 function leaveReader() {
@@ -298,15 +322,17 @@ function leaveReader() {
       </p>
       <button
         type="button"
-        class="absolute inset-y-0 left-0 z-10 w-[28%] cursor-pointer appearance-none border-0 bg-transparent p-0"
+        class="reader-tap-zone absolute inset-y-0 left-0 z-10 w-[28%] cursor-pointer appearance-none border-0 bg-transparent p-0"
         aria-label="Previous page"
-        @click="go('prev')"
+        @pointerup="tapPage('prev', $event)"
+        @keydown="keyPage('prev', $event)"
       />
       <button
         type="button"
-        class="absolute inset-y-0 right-0 z-10 w-[28%] cursor-pointer appearance-none border-0 bg-transparent p-0"
+        class="reader-tap-zone absolute inset-y-0 right-0 z-10 w-[28%] cursor-pointer appearance-none border-0 bg-transparent p-0"
         aria-label="Next page"
-        @click="go('next')"
+        @pointerup="tapPage('next', $event)"
+        @keydown="keyPage('next', $event)"
       />
     </div>
 
